@@ -19,7 +19,9 @@ import android.media.MediaMetadataRetriever;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.provider.Settings;
 import android.provider.OpenableColumns;
 import android.text.InputType;
@@ -43,6 +45,7 @@ import java.util.regex.Pattern;
 
 public class MainActivity extends Activity {
     private static final int REQUEST_READ_SMS = 10;
+    private static final int REQUEST_READ_MEDIA = 11;
     private static final int REQUEST_PICK_MEDIA = 20;
     private static final String BG = "#f3f6fa";
     private static final String PANEL = "#ffffff";
@@ -70,6 +73,7 @@ public class MainActivity extends Activity {
     private String selectedMediaInfo = "";
     private Uri selectedMediaUri;
     private volatile boolean cancelMediaScan = false;
+    private boolean pendingFullDeviceScan = false;
     private List<AppCameraRisk> cameraApps = new ArrayList<>();
 
     @Override
@@ -180,6 +184,13 @@ public class MainActivity extends Activity {
             }
         }), realtimeParams);
 
+        LinearLayout deviceActions = horizontalRow();
+        controlPanel.addView(deviceActions, marginTop(matchWrap(), 10));
+        deviceActions.addView(primaryButton("Full device scan", view -> runFullDeviceScan()), new LinearLayout.LayoutParams(0, dp(44), 1));
+        LinearLayout.LayoutParams grantParams = new LinearLayout.LayoutParams(0, dp(44), 1);
+        grantParams.setMargins(dp(10), 0, 0, 0);
+        deviceActions.addView(outlineButton("Grant permissions", view -> requestAllRuntimePermissions()), grantParams);
+
         LinearLayout resultPanel = panel();
         root.addView(resultPanel, marginTop(matchWrap(), 16));
 
@@ -270,6 +281,90 @@ public class MainActivity extends Activity {
         int score = Math.max(result.threatScore, result.exposureScore);
         ScanHistory.append(this, result.title, result.badge, score, result.summary);
         BackendClient.sendAuditAsync(this, result.title, result.badge, score, result.summary);
+    }
+
+    private void runFullDeviceScan() {
+        pendingFullDeviceScan = true;
+        if (!hasSmsPermission() || !hasMediaPermission()) {
+            requestAllRuntimePermissions();
+            Toast.makeText(this, "Grant permissions, then Full device scan will continue", Toast.LENGTH_LONG).show();
+            return;
+        }
+        pendingFullDeviceScan = false;
+
+        refreshCameraAudit();
+        List<Finding> allFindings = new ArrayList<>();
+        int maxScore = 0;
+
+        ScanData permissions = analyzePermissions();
+        allFindings.add(new Finding("Permission scan", permissions.summary + " Badge: " + permissions.badge + ".", null));
+        maxScore = Math.max(maxScore, permissions.threatScore);
+
+        ScanData malware = analyzeInstalledAppsForMalware();
+        allFindings.add(new Finding("Installed app scan", malware.summary + " Badge: " + malware.badge + ".", null));
+        maxScore = Math.max(maxScore, malware.threatScore);
+
+        if (hasSmsPermission()) {
+            ScanData sms = analyzeMessage(readRecentSmsMessages());
+            allFindings.add(new Finding("SMS inbox scan", sms.summary + " Badge: " + sms.badge + ".", null));
+            maxScore = Math.max(maxScore, sms.threatScore);
+        } else {
+            allFindings.add(new Finding("SMS inbox blocked", "READ_SMS permission is not granted, so inbox fraud scanning cannot run.", null));
+        }
+
+        if (hasMediaPermission()) {
+            MediaBatchResult media = scanRecentMediaBatch(6);
+            allFindings.addAll(media.findings);
+            maxScore = Math.max(maxScore, media.maxScore);
+        } else {
+            allFindings.add(new Finding("Media scan blocked", "Image/video read permission is not granted, so gallery scanning cannot run.", null));
+        }
+
+        String badge = maxScore >= 80 ? "Critical" : maxScore >= 45 ? "High Risk" : maxScore > 0 ? "Review" : "Healthy";
+        String color = maxScore >= 45 ? DANGER : SAFE;
+        String bg = maxScore >= 80 ? "#fecaca" : maxScore >= 45 ? "#fee2e2" : maxScore > 0 ? "#fef3c7" : "#dcfce7";
+        ScanData result = new ScanData(
+            "Full device scan",
+            "Completed installed-app, SMS, permission, and recent media checks on this device.",
+            badge,
+            color,
+            bg,
+            "",
+            allFindings,
+            Arrays.asList(
+                "Open flagged app settings and revoke risky permissions.",
+                "Review SMS alerts before clicking links or sharing OTPs.",
+                "Review flagged media privately; use Delete or Skip for selected files.",
+                "Enable notification access for WhatsApp/Telegram style message monitoring."
+            ),
+            clamp(80 - maxScore / 4),
+            clamp(78 - maxScore / 3),
+            clamp(maxScore),
+            clamp(74 - maxScore / 4),
+            clamp(maxScore / 2)
+        );
+        showCompletedResult(result);
+        Toast.makeText(this, "Full device scan complete", Toast.LENGTH_LONG).show();
+    }
+
+    private void requestAllRuntimePermissions() {
+        List<String> permissions = new ArrayList<>();
+        if (!hasSmsPermission()) {
+            permissions.add(Manifest.permission.READ_SMS);
+        }
+        if (!hasMediaPermission()) {
+            if (Build.VERSION.SDK_INT >= 33) {
+                permissions.add(Manifest.permission.READ_MEDIA_IMAGES);
+                permissions.add(Manifest.permission.READ_MEDIA_VIDEO);
+            } else {
+                permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE);
+            }
+        }
+        if (permissions.isEmpty()) {
+            Toast.makeText(this, "Required runtime permissions are already granted", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        requestPermissions(permissions.toArray(new String[0]), REQUEST_READ_MEDIA);
     }
 
     private void renderScores(int[] metrics) {
@@ -563,6 +658,14 @@ public class MainActivity extends Activity {
         return checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED;
     }
 
+    private boolean hasMediaPermission() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            return checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
+                && checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED;
+        }
+        return checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+    }
+
     private String readRecentSmsMessages() {
         StringBuilder builder = new StringBuilder();
         ContentResolver resolver = getContentResolver();
@@ -627,6 +730,35 @@ public class MainActivity extends Activity {
                 runCurrentMode();
             } else {
                 Toast.makeText(this, "SMS scan needs READ_SMS permission", Toast.LENGTH_LONG).show();
+            }
+        } else if (requestCode == REQUEST_READ_MEDIA) {
+            if (pendingFullDeviceScan && hasSmsPermission() && hasMediaPermission()) {
+                runFullDeviceScan();
+            } else if (pendingFullDeviceScan) {
+                pendingFullDeviceScan = false;
+                List<Finding> blocked = new ArrayList<>();
+                if (!hasSmsPermission()) {
+                    blocked.add(new Finding("SMS permission missing", "READ_SMS was denied, so SMS inbox scanning cannot run.", null));
+                }
+                if (!hasMediaPermission()) {
+                    blocked.add(new Finding("Media permission missing", "Image/video permission was denied, so gallery scanning cannot run.", null));
+                }
+                ScanData result = new ScanData(
+                    "Permission setup incomplete",
+                    "Android permissions are blocking full device scanning.",
+                    "Blocked",
+                    DANGER,
+                    "#fee2e2",
+                    "",
+                    blocked,
+                    Arrays.asList("Open Grant permissions and allow SMS plus media access.", "Enable notification access from Settings for app notifications."),
+                    50,
+                    50,
+                    45,
+                    45,
+                    0
+                );
+                showCompletedResult(result);
             }
         }
     }
@@ -816,6 +948,71 @@ public class MainActivity extends Activity {
             }
         }
         return new MediaScanResult(bestScore, bestSkin, frames);
+    }
+
+    private MediaBatchResult scanRecentMediaBatch(int limit) {
+        List<Finding> batchFindings = new ArrayList<>();
+        int maxScore = 0;
+        int scanned = 0;
+
+        scanned += scanRecentMediaUri(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, "image", Math.max(1, limit / 2), batchFindings);
+        scanned += scanRecentMediaUri(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, "video", Math.max(1, limit / 2), batchFindings);
+        for (Finding finding : batchFindings) {
+            int score = extractScore(finding.body);
+            maxScore = Math.max(maxScore, score);
+        }
+        if (scanned == 0) {
+            batchFindings.add(new Finding("Recent media scan", "No readable recent images or videos were found through MediaStore.", null));
+        }
+        return new MediaBatchResult(batchFindings, maxScore);
+    }
+
+    private int scanRecentMediaUri(Uri collection, String kind, int limit, List<Finding> findingsOut) {
+        Cursor cursor = null;
+        int scanned = 0;
+        try {
+            String[] projection = new String[] {MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME};
+            cursor = getContentResolver().query(collection, projection, null, null, MediaStore.MediaColumns.DATE_ADDED + " DESC");
+            if (cursor == null) {
+                return 0;
+            }
+            int idIndex = cursor.getColumnIndex(MediaStore.MediaColumns._ID);
+            int nameIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DISPLAY_NAME);
+            while (cursor.moveToNext() && scanned < limit) {
+                long id = cursor.getLong(idIndex);
+                String name = nameIndex >= 0 ? cursor.getString(nameIndex) : kind + "-" + id;
+                Uri itemUri = Uri.withAppendedPath(collection, String.valueOf(id));
+                MediaScanResult visual = "video".equals(kind) ? scanVideoFrames(itemUri) : scanImagePixels(itemUri);
+                int score = visual.riskScore;
+                findingsOut.add(new Finding(
+                    "Recent " + kind + ": " + name,
+                    "Visual score " + score + "/100. Skin-tone coverage " + visual.skinPercent + "%. Frames scanned " + visual.framesScanned + ".",
+                    null
+                ));
+                scanned++;
+            }
+        } catch (SecurityException securityException) {
+            findingsOut.add(new Finding("Recent " + kind + " scan blocked", "Android denied access to " + kind + " media.", null));
+        } catch (Exception exception) {
+            findingsOut.add(new Finding("Recent " + kind + " scan failed", "Could not scan recent " + kind + " media on this device.", null));
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+        return scanned;
+    }
+
+    private int extractScore(String body) {
+        java.util.regex.Matcher matcher = Pattern.compile("score ([0-9]{1,3})/100", Pattern.CASE_INSENSITIVE).matcher(body);
+        if (matcher.find()) {
+            try {
+                return clamp(Integer.parseInt(matcher.group(1)));
+            } catch (Exception ignored) {
+                return 0;
+            }
+        }
+        return 0;
     }
 
     private MediaScanResult scanBitmapForSkin(Bitmap bitmap, int frameCount) {
@@ -1428,6 +1625,16 @@ public class MainActivity extends Activity {
             this.riskScore = riskScore;
             this.skinPercent = skinPercent;
             this.framesScanned = framesScanned;
+        }
+    }
+
+    private static final class MediaBatchResult {
+        final List<Finding> findings;
+        final int maxScore;
+
+        MediaBatchResult(List<Finding> findings, int maxScore) {
+            this.findings = findings;
+            this.maxScore = maxScore;
         }
     }
 
