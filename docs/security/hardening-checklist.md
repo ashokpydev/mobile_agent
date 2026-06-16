@@ -1,0 +1,21 @@
+# Security Hardening Checklist
+
+- Replace default encryption keys with managed KMS secrets.
+- Replace local API-key auth with OIDC/OAuth2 and short-lived JWTs.
+- Require Android device attestation for mobile clients.
+- Enforce TLS 1.2+ at ingress and mTLS between internal services.
+- Require OAuth/OIDC with RBAC for dashboards and admin APIs.
+- Store access tokens in platform secure storage on Android.
+- Use Android biometric gate for sensitive local vault actions.
+- Redact OTPs, tokens, payment cards, and identity numbers from logs.
+- Disable external AI calls unless an explicit policy enables them.
+- Sign and verify threat intelligence feed updates.
+- Run dependency, container, and IaC scanning in CI.
+- Enable audit logs for data export, deletion, and admin access.
+- Apply rate limits to public APIs and agent endpoints.
+- Maintain retention schedules for raw artifacts and findings.
+- Use separate production, staging, and development credentials.
+- Add SAST/DAST checks before commercial deployment.
+- Persist audit events to append-only storage.
+- Enforce raw artifact retention of zero by default.
+- Add consent receipts for notification, SMS, file, OCR, and accessibility-powered scans.

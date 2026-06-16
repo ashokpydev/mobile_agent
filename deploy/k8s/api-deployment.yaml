@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: privacy-guardian-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: privacy-guardian-api
+  template:
+    metadata:
+      labels:
+        app: privacy-guardian-api
+    spec:
+      containers:
+        - name: api
+          image: privacy-guardian-api:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: privacy-guardian-secrets
+            - configMapRef:
+                name: privacy-guardian-config
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+

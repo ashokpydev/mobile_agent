@@ -1,0 +1,909 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mobile Privacy Guardian Demo</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f8fb;
+        --panel: #ffffff;
+        --ink: #17202f;
+        --muted: #647084;
+        --line: #d9e0ea;
+        --accent: #0d9488;
+        --accent-dark: #0f766e;
+        --warn: #b45309;
+        --danger: #b91c1c;
+        --critical: #7f1d1d;
+        --safe: #166534;
+        --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      header {
+        border-bottom: 1px solid var(--line);
+        background: #ffffff;
+      }
+
+      .topbar {
+        max-width: 1180px;
+        margin: 0 auto;
+        min-height: 72px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 0 22px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+      }
+
+      .mark {
+        width: 38px;
+        height: 38px;
+        border-radius: 8px;
+        background: var(--accent);
+        color: white;
+        display: grid;
+        place-items: center;
+        font-weight: 800;
+      }
+
+      h1 {
+        font-size: 20px;
+        line-height: 1.2;
+        margin: 0;
+      }
+
+      .subtitle {
+        margin: 2px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .status {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        color: var(--safe);
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      .status::before {
+        content: "";
+        width: 9px;
+        height: 9px;
+        border-radius: 99px;
+        background: var(--safe);
+      }
+
+      main {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 24px 22px 40px;
+      }
+
+      .grid {
+        display: grid;
+        gap: 16px;
+      }
+
+      .score-grid {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        margin-bottom: 18px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+      }
+
+      .score {
+        padding: 16px;
+        min-height: 114px;
+      }
+
+      .label {
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .metric {
+        margin-top: 10px;
+        font-size: 34px;
+        font-weight: 800;
+        line-height: 1;
+      }
+
+      .bar {
+        margin-top: 14px;
+        height: 7px;
+        border-radius: 99px;
+        background: #e7ecf3;
+        overflow: hidden;
+      }
+
+      .bar span {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: var(--accent);
+      }
+
+      .workspace {
+        grid-template-columns: 320px minmax(0, 1fr);
+        align-items: start;
+      }
+
+      .trust-row {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        margin-bottom: 18px;
+      }
+
+      .trust {
+        padding: 13px;
+        min-height: 96px;
+      }
+
+      .trust strong {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 14px;
+      }
+
+      .trust p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.35;
+      }
+
+      .sidebar,
+      .results {
+        padding: 18px;
+      }
+
+      h2 {
+        font-size: 18px;
+        margin: 0 0 14px;
+      }
+
+      .tabs {
+        display: grid;
+        gap: 8px;
+      }
+
+      .tab {
+        width: 100%;
+        border: 1px solid var(--line);
+        background: #fff;
+        border-radius: 8px;
+        padding: 12px 13px;
+        color: var(--ink);
+        text-align: left;
+        font: inherit;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .tab[aria-selected="true"] {
+        border-color: var(--accent);
+        background: #ecfdf5;
+        color: var(--accent-dark);
+        font-weight: 800;
+      }
+
+      .demo-input {
+        margin-top: 16px;
+      }
+
+      textarea,
+      input {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+        font: inherit;
+        color: var(--ink);
+        background: #ffffff;
+      }
+
+      textarea {
+        min-height: 120px;
+        resize: vertical;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .toggle-row {
+        margin-top: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+        background: #fff;
+      }
+
+      .switch {
+        position: relative;
+        width: 48px;
+        height: 28px;
+        flex: 0 0 auto;
+      }
+
+      .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+
+      .slider {
+        position: absolute;
+        cursor: pointer;
+        inset: 0;
+        background: #cbd5e1;
+        border-radius: 999px;
+        transition: 0.2s;
+      }
+
+      .slider::before {
+        content: "";
+        position: absolute;
+        width: 22px;
+        height: 22px;
+        left: 3px;
+        top: 3px;
+        border-radius: 999px;
+        background: #fff;
+        transition: 0.2s;
+        box-shadow: 0 1px 4px rgba(15, 23, 42, 0.25);
+      }
+
+      .switch input:checked + .slider {
+        background: var(--accent);
+      }
+
+      .switch input:checked + .slider::before {
+        transform: translateX(20px);
+      }
+
+      button.primary {
+        border: 0;
+        border-radius: 8px;
+        background: var(--accent);
+        color: white;
+        padding: 11px 14px;
+        font: inherit;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      button.secondary {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        color: var(--ink);
+        padding: 10px 13px;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .result-head {
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: 14px;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 14px;
+        margin-bottom: 14px;
+      }
+
+      .badge {
+        border-radius: 999px;
+        padding: 7px 10px;
+        font-size: 13px;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+
+      .badge.safe {
+        background: #dcfce7;
+        color: var(--safe);
+      }
+
+      .badge.medium {
+        background: #fef3c7;
+        color: var(--warn);
+      }
+
+      .badge.high {
+        background: #fee2e2;
+        color: var(--danger);
+      }
+
+      .badge.critical {
+        background: #fecaca;
+        color: var(--critical);
+      }
+
+      .findings {
+        display: grid;
+        gap: 10px;
+      }
+
+      .finding {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 13px;
+        background: #fff;
+      }
+
+      .finding strong {
+        display: block;
+        margin-bottom: 5px;
+      }
+
+      .finding p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      .recommendations {
+        margin-top: 16px;
+        border-top: 1px solid var(--line);
+        padding-top: 14px;
+      }
+
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.48);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        z-index: 20;
+      }
+
+      .modal-backdrop.open {
+        display: flex;
+      }
+
+      .modal {
+        width: min(560px, 100%);
+        background: #fff;
+        border-radius: 8px;
+        border: 1px solid #fecaca;
+        box-shadow: 0 24px 70px rgba(15, 23, 42, 0.32);
+        overflow: hidden;
+      }
+
+      .modal-header {
+        background: #fef2f2;
+        border-bottom: 1px solid #fecaca;
+        padding: 16px;
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .modal-header h2 {
+        margin: 0;
+        color: var(--critical);
+      }
+
+      .close-alert {
+        border: 1px solid #fecaca;
+        background: #fff;
+        border-radius: 8px;
+        padding: 8px 10px;
+        cursor: pointer;
+        font-weight: 800;
+      }
+
+      .modal-body {
+        padding: 16px;
+      }
+
+      .modal-body p {
+        margin: 0 0 12px;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      ul {
+        margin: 8px 0 0;
+        padding-left: 20px;
+      }
+
+      li {
+        margin: 6px 0;
+      }
+
+      .split {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      @media (max-width: 900px) {
+        .score-grid,
+        .trust-row,
+        .workspace,
+        .split {
+          grid-template-columns: 1fr;
+        }
+
+        .topbar {
+          align-items: flex-start;
+          flex-direction: column;
+          padding-top: 16px;
+          padding-bottom: 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="topbar">
+        <div class="brand">
+          <div class="mark">PG</div>
+          <div>
+            <h1>Mobile Privacy Guardian</h1>
+            <p class="subtitle">AI-powered privacy and fraud protection demo</p>
+          </div>
+        </div>
+        <div class="status">Demo ready</div>
+      </div>
+    </header>
+
+    <main>
+      <section class="grid score-grid" aria-label="Privacy scores">
+        <div class="panel score">
+          <div class="label">Privacy score</div>
+          <div class="metric" id="privacyScore">74</div>
+          <div class="bar"><span style="width: 74%"></span></div>
+        </div>
+        <div class="panel score">
+          <div class="label">Security score</div>
+          <div class="metric" id="securityScore">69</div>
+          <div class="bar"><span style="width: 69%"></span></div>
+        </div>
+        <div class="panel score">
+          <div class="label">Threat score</div>
+          <div class="metric" id="threatScore">31</div>
+          <div class="bar"><span style="width: 31%; background: #b45309"></span></div>
+        </div>
+        <div class="panel score">
+          <div class="label">Permission score</div>
+          <div class="metric" id="permissionScore">62</div>
+          <div class="bar"><span style="width: 62%"></span></div>
+        </div>
+        <div class="panel score">
+          <div class="label">Data exposure</div>
+          <div class="metric" id="exposureScore">18</div>
+          <div class="bar"><span style="width: 18%; background: #b45309"></span></div>
+        </div>
+      </section>
+
+      <section class="grid trust-row" aria-label="Privacy trust controls">
+        <div class="panel trust"><strong>Consent first</strong><p>Cloud analysis requires explicit user consent.</p></div>
+        <div class="panel trust"><strong>Zero raw retention</strong><p>Raw artifacts are not stored by default.</p></div>
+        <div class="panel trust"><strong>Local-first</strong><p>Core scans are designed to run offline on device.</p></div>
+        <div class="panel trust"><strong>Redacted audit</strong><p>Events use pseudonymous IDs and masked summaries.</p></div>
+        <div class="panel trust"><strong>AI controlled</strong><p>External LLM calls are disabled unless policy enables them.</p></div>
+      </section>
+
+      <section class="grid workspace">
+        <aside class="panel sidebar">
+          <h2>Demo scans</h2>
+          <div class="tabs" role="tablist">
+            <button class="tab" aria-selected="true" data-mode="permissions">Permission intelligence <span>Run</span></button>
+            <button class="tab" aria-selected="false" data-mode="message">Fraud message <span>Run</span></button>
+            <button class="tab" aria-selected="false" data-mode="url">Phishing URL <span>Run</span></button>
+            <button class="tab" aria-selected="false" data-mode="data">Sensitive data <span>Run</span></button>
+            <button class="tab" aria-selected="false" data-mode="malware">Malware app alert <span>Run</span></button>
+            <button class="tab" aria-selected="false" data-mode="contentSafety">Illegal content safety <span>Toggle</span></button>
+            <button class="tab" aria-selected="false" data-mode="downloadGuard">Download guard <span>Block</span></button>
+          </div>
+
+          <div class="demo-input" id="inputArea"></div>
+          <div class="actions">
+            <button class="primary" id="runScan">Analyze</button>
+            <button class="secondary" id="resetSample">Reset sample</button>
+          </div>
+        </aside>
+
+        <section class="panel results">
+          <div class="result-head">
+            <div>
+              <h2 id="resultTitle">Permission intelligence</h2>
+              <p class="subtitle" id="resultSummary">Risky apps are ranked by privacy impact and remediation priority.</p>
+            </div>
+            <div class="badge high" id="resultBadge">High Risk</div>
+          </div>
+
+          <div class="findings" id="findings"></div>
+
+          <div class="recommendations">
+            <h2>Agent recommendations</h2>
+            <ul id="recommendations"></ul>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <div class="modal-backdrop" id="malwareModal" role="dialog" aria-modal="true" aria-labelledby="malwareTitle">
+      <div class="modal">
+        <div class="modal-header">
+          <div>
+            <h2 id="malwareTitle">Malware indicator detected</h2>
+            <p class="subtitle">Suspicious app requires immediate attention</p>
+          </div>
+          <button class="close-alert" id="closeAlert">Close</button>
+        </div>
+        <div class="modal-body" id="malwareBody"></div>
+      </div>
+    </div>
+
+    <script>
+      const samples = {
+        permissions: {
+          title: "Permission intelligence",
+          summary: "Risky apps are ranked by privacy impact and remediation priority.",
+          input: "",
+          score: 78,
+          badge: ["High Risk", "high"],
+          findings: [
+            ["Flashlight Pro", "Requests camera, microphone, SMS read access, and overlay permission. This is excessive for a utility app."],
+            ["Quick Cleaner", "Has all-files storage access and notification access, which may expose documents and OTP alerts."],
+            ["Ride Tracker", "Uses precise location in the background. This may be valid, but should be limited to while-in-use access."]
+          ],
+          actions: [
+            "Revoke SMS and microphone permissions from Flashlight Pro.",
+            "Disable overlay permission for apps that do not need it.",
+            "Limit location access for Ride Tracker to while using the app."
+          ],
+          metrics: [52, 58, 47, 41, 18]
+        },
+        message: {
+          title: "Fraud message analysis",
+          summary: "The detector checks urgency, financial context, OTP abuse, links, and social-engineering language.",
+          input: "Final warning: Your bank KYC is expired. Account will be blocked in 30 minutes. Share OTP and verify at http://bit.ly/secure-kyc",
+          score: 92,
+          badge: ["Critical", "critical"],
+          findings: [
+            ["KYC pressure", "The message uses urgent account-blocking language, a common banking scam tactic."],
+            ["OTP abuse", "It asks for an OTP. Legitimate banks do not ask users to share OTPs by message."],
+            ["Suspicious link", "A shortened URL hides the final destination and may lead to credential theft."]
+          ],
+          actions: [
+            "Do not click the link or share OTPs.",
+            "Open the official banking app manually to verify account status.",
+            "Report and block the sender."
+          ],
+          metrics: [68, 42, 92, 64, 22]
+        },
+        url: {
+          title: "Phishing URL analysis",
+          summary: "The URL scanner looks for unsafe transport, obfuscation, typosquatting, and suspicious domain structure.",
+          input: "http://sbi-login-secure.example.click@evil.test/login",
+          score: 74,
+          badge: ["High Risk", "high"],
+          findings: [
+            ["Unsafe HTTP", "The link does not use HTTPS, so credentials could be exposed."],
+            ["URL obfuscation", "The link contains an at-sign pattern that can disguise the real destination."],
+            ["Brand impersonation", "The visible text resembles a banking login, but the real domain is different."]
+          ],
+          actions: [
+            "Do not open this link.",
+            "Use the official app or type the bank website manually.",
+            "Warn the sender account may be compromised."
+          ],
+          metrics: [71, 51, 74, 66, 18]
+        },
+        data: {
+          title: "Sensitive data discovery",
+          summary: "The scanner identifies exposed identity, banking, payment-card, token, and recovery-secret patterns.",
+          input: "PAN ABCDE1234F\nAadhaar 1234 5678 9012\nsecret_key=sk_test_1234567890abcdef123456\nCVV: 123",
+          score: 100,
+          badge: ["Critical", "critical"],
+          findings: [
+            ["PAN detected", "A tax identifier appears in plain text and should not be stored in unsecured notes."],
+            ["Aadhaar-like identifier", "A 12-digit identity pattern was found and should be protected."],
+            ["Secret key and CVV", "Credentials and payment authentication data are exposed and require immediate remediation."]
+          ],
+          actions: [
+            "Move identity documents to an encrypted vault.",
+            "Rotate exposed API keys and tokens.",
+            "Delete CVV values from stored files."
+          ],
+          metrics: [49, 44, 67, 62, 100]
+        },
+        malware: {
+          title: "Malware app alert",
+          summary: "The detector combines risky permissions, special access, installer source, network indicators, and spyware-like behavior.",
+          input: "Bank Security Update\nPackage: com.secure.bank.verify\nSignals: Accessibility, overlay, READ_SMS, unknown installer, malicious-example.test",
+          score: 96,
+          badge: ["Critical", "critical"],
+          findings: [
+            ["Bank Security Update", "This app uses accessibility access, overlay permission, SMS access, and contacted a known malicious domain."],
+            ["Spyware behavior", "Accessibility plus overlay access can observe screens and cover legitimate banking prompts."],
+            ["Unknown source", "The app was installed outside a trusted store and resembles a fake banking security update."]
+          ],
+          actions: [
+            "Uninstall Bank Security Update immediately.",
+            "Revoke accessibility, overlay, and SMS permissions before uninstalling if possible.",
+            "Change banking passwords from a clean device and enable transaction alerts."
+          ],
+          metrics: [38, 31, 96, 29, 44],
+          alert: {
+            app: "Bank Security Update",
+            packageName: "com.secure.bank.verify",
+            severity: "Critical",
+            reason: "Accessibility, overlay, SMS access, unknown installer, and malicious domain contact.",
+            action: "Uninstall the app, revoke special access, and verify banking accounts from a trusted device."
+          }
+        },
+        contentSafety: {
+          title: "Opt-in illegal content safety scan",
+          summary: "This scan runs only when the user turns it on. It checks concrete harmful, illegal, or adult media indicators, not broad political opinions.",
+          input: "SMS: message says to attack a public crowd tomorrow\nImage OCR: fake ID and stolen card sale\nVideo: private_video.mp4 labels adult, nudity, explicit sexual",
+          score: 85,
+          badge: ["High Risk", "high"],
+          findings: [
+            ["Explicit threat indicator", "A message contains language indicating possible harm toward people or a public place."],
+            ["Financial crime indicator", "OCR text contains fake ID or stolen card trade language."],
+            ["Adult video indicator", "A gallery video was labeled as adult or sexually explicit by on-device media analysis."]
+          ],
+          actions: [
+            "Do not forward or amplify the content.",
+            "Show private popups only; do not display explicit thumbnails in alerts.",
+            "Preserve evidence and report through lawful safety channels.",
+            "Keep the feature off unless the user explicitly enables scanning."
+          ],
+          metrics: [45, 39, 85, 54, 38],
+          adultAlert: {
+            file: "private_video.mp4",
+            source: "Gallery",
+            category: "Adult/explicit video indicator",
+            action: "Review privately, move to secure storage, or delete it if it should not be on this device."
+          }
+        },
+        downloadGuard: {
+          title: "Adult download restriction",
+          summary: "Download Guard checks URL, filename, MIME metadata, source app, and on-device media labels before saving.",
+          input: "URL: https://example.test/downloads/adult-video.mp4\nFile: adult-video.mp4\nLabels: adult, explicit sexual\nPolicy: block adult downloads",
+          score: 55,
+          badge: ["Blocked", "medium"],
+          findings: [
+            ["Adult download indicator", "The URL, filename, or media labels indicate adult or sexually explicit video content."],
+            ["Policy decision", "The active policy is set to block adult downloads before the file is saved."],
+            ["Privacy-safe alert", "The app shows a private notice without rendering an explicit thumbnail or preview."]
+          ],
+          actions: [
+            "Block the download.",
+            "Show a private notification explaining why it was blocked.",
+            "Allow the user or parent/admin policy to change the action to warn or allow."
+          ],
+          metrics: [64, 71, 55, 62, 18],
+          blockAlert: {
+            file: "adult-video.mp4",
+            source: "Chrome",
+            decision: "Blocked",
+            reason: "Adult or sexually explicit download indicators matched the active policy.",
+            action: "The file was not saved to the device."
+          }
+        }
+      };
+
+      let mode = "permissions";
+      let contentSafetyEnabled = false;
+      let downloadGuardEnabled = true;
+      const tabs = document.querySelectorAll(".tab");
+      const inputArea = document.getElementById("inputArea");
+      const runScan = document.getElementById("runScan");
+      const resetSample = document.getElementById("resetSample");
+      const resultTitle = document.getElementById("resultTitle");
+      const resultSummary = document.getElementById("resultSummary");
+      const resultBadge = document.getElementById("resultBadge");
+      const findings = document.getElementById("findings");
+      const recommendations = document.getElementById("recommendations");
+      const malwareModal = document.getElementById("malwareModal");
+      const malwareBody = document.getElementById("malwareBody");
+      const closeAlert = document.getElementById("closeAlert");
+
+      function setMode(nextMode) {
+        mode = nextMode;
+        tabs.forEach((tab) => tab.setAttribute("aria-selected", String(tab.dataset.mode === mode)));
+        renderInput();
+        renderResult(samples[mode]);
+      }
+
+      function renderInput() {
+        if (mode === "permissions") {
+          inputArea.innerHTML = `
+            <div class="split">
+              <input value="Flashlight Pro" aria-label="App name" />
+              <input value="Camera, microphone, SMS, overlay" aria-label="Permissions" />
+            </div>
+          `;
+          return;
+        }
+        if (mode === "contentSafety") {
+          inputArea.innerHTML = `
+            <div class="toggle-row">
+              <div>
+                <strong>Illegal content safety scan</strong>
+                <p class="subtitle">Off means no messages, OCR text, or transcripts are scanned.</p>
+              </div>
+              <label class="switch" aria-label="Toggle content safety scan">
+                <input id="contentSafetyToggle" type="checkbox" ${contentSafetyEnabled ? "checked" : ""} />
+                <span class="slider"></span>
+              </label>
+            </div>
+            <textarea aria-label="Demo input">${samples[mode].input}</textarea>
+          `;
+          document.getElementById("contentSafetyToggle").addEventListener("change", (event) => {
+            contentSafetyEnabled = event.target.checked;
+            renderResult(samples[mode]);
+          });
+          return;
+        }
+        if (mode === "downloadGuard") {
+          inputArea.innerHTML = `
+            <div class="toggle-row">
+              <div>
+                <strong>Restrict adult downloads</strong>
+                <p class="subtitle">On blocks adult video downloads before saving.</p>
+              </div>
+              <label class="switch" aria-label="Toggle adult download guard">
+                <input id="downloadGuardToggle" type="checkbox" ${downloadGuardEnabled ? "checked" : ""} />
+                <span class="slider"></span>
+              </label>
+            </div>
+            <textarea aria-label="Demo input">${samples[mode].input}</textarea>
+          `;
+          document.getElementById("downloadGuardToggle").addEventListener("change", (event) => {
+            downloadGuardEnabled = event.target.checked;
+            renderResult(samples[mode]);
+          });
+          return;
+        }
+        inputArea.innerHTML = `<textarea aria-label="Demo input">${samples[mode].input}</textarea>`;
+      }
+
+      function renderResult(data) {
+        if (mode === "downloadGuard" && !downloadGuardEnabled) {
+          resultTitle.textContent = data.title;
+          resultSummary.textContent = "Download Guard is OFF. Adult download metadata is not inspected.";
+          resultBadge.textContent = "Allowed";
+          resultBadge.className = "badge safe";
+          findings.innerHTML = `<article class="finding"><strong>Restriction disabled</strong><p>The file would be allowed because the adult download restriction is off.</p></article>`;
+          recommendations.innerHTML = "<li>Turn on Download Guard to block adult video downloads.</li><li>Use on-device labels and metadata instead of uploading private videos.</li>";
+          updateMetrics([74, 69, 0, 62, 18]);
+          return;
+        }
+        if (mode === "contentSafety" && !contentSafetyEnabled) {
+          resultTitle.textContent = data.title;
+          resultSummary.textContent = "Feature is OFF. No mobile content is scanned until the user enables it.";
+          resultBadge.textContent = "Off";
+          resultBadge.className = "badge safe";
+          findings.innerHTML = `<article class="finding"><strong>Scanning disabled</strong><p>Messages, text, image OCR, and video transcripts are not analyzed while the toggle is off.</p></article>`;
+          recommendations.innerHTML = "<li>Turn on the feature only with explicit user consent.</li><li>Keep raw content local whenever possible.</li>";
+          updateMetrics([74, 69, 0, 62, 18]);
+          return;
+        }
+        resultTitle.textContent = data.title;
+        resultSummary.textContent = data.summary;
+        resultBadge.textContent = data.badge[0];
+        resultBadge.className = `badge ${data.badge[1]}`;
+        findings.innerHTML = data.findings
+          .map(([title, body]) => `<article class="finding"><strong>${title}</strong><p>${body}</p></article>`)
+          .join("");
+        recommendations.innerHTML = data.actions.map((item) => `<li>${item}</li>`).join("");
+        updateMetrics(data.metrics);
+        if (data.alert) {
+          showMalwareAlert(data.alert);
+        }
+        if (mode === "contentSafety" && contentSafetyEnabled && data.adultAlert) {
+          showAdultContentAlert(data.adultAlert);
+        }
+        if (mode === "downloadGuard" && downloadGuardEnabled && data.blockAlert) {
+          showDownloadBlockedAlert(data.blockAlert);
+        }
+      }
+
+      function showMalwareAlert(alert) {
+        document.getElementById("malwareTitle").textContent = "Malware indicator detected";
+        malwareBody.innerHTML = `
+          <p><strong>App:</strong> ${alert.app}</p>
+          <p><strong>Package:</strong> ${alert.packageName}</p>
+          <p><strong>Severity:</strong> ${alert.severity}</p>
+          <p><strong>Why flagged:</strong> ${alert.reason}</p>
+          <p><strong>Recommended action:</strong> ${alert.action}</p>
+        `;
+        malwareModal.classList.add("open");
+      }
+
+      function showAdultContentAlert(alert) {
+        malwareBody.innerHTML = `
+          <p><strong>File:</strong> ${alert.file}</p>
+          <p><strong>Source:</strong> ${alert.source}</p>
+          <p><strong>Category:</strong> ${alert.category}</p>
+          <p><strong>Recommended action:</strong> ${alert.action}</p>
+          <p><strong>Privacy:</strong> No thumbnail or explicit preview is shown in this alert.</p>
+        `;
+        document.getElementById("malwareTitle").textContent = "Adult video indicator found";
+        malwareModal.classList.add("open");
+      }
+
+      function showDownloadBlockedAlert(alert) {
+        malwareBody.innerHTML = `
+          <p><strong>File:</strong> ${alert.file}</p>
+          <p><strong>Source:</strong> ${alert.source}</p>
+          <p><strong>Decision:</strong> ${alert.decision}</p>
+          <p><strong>Why blocked:</strong> ${alert.reason}</p>
+          <p><strong>Result:</strong> ${alert.action}</p>
+          <p><strong>Privacy:</strong> The app inspected metadata and labels only.</p>
+        `;
+        document.getElementById("malwareTitle").textContent = "Adult download blocked";
+        malwareModal.classList.add("open");
+      }
+
+      function updateMetrics([privacy, security, threat, permission, exposure]) {
+        const ids = ["privacyScore", "securityScore", "threatScore", "permissionScore", "exposureScore"];
+        [privacy, security, threat, permission, exposure].forEach((value, index) => {
+          const el = document.getElementById(ids[index]);
+          el.textContent = value;
+          el.nextElementSibling.firstElementChild.style.width = `${value}%`;
+        });
+      }
+
+      tabs.forEach((tab) => tab.addEventListener("click", () => setMode(tab.dataset.mode)));
+      runScan.addEventListener("click", () => renderResult(samples[mode]));
+      resetSample.addEventListener("click", renderInput);
+      closeAlert.addEventListener("click", () => malwareModal.classList.remove("open"));
+      malwareModal.addEventListener("click", (event) => {
+        if (event.target === malwareModal) malwareModal.classList.remove("open");
+      });
+      setMode(mode);
+    </script>
+  </body>
+</html>

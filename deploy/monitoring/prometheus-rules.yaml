@@ -1,0 +1,18 @@
+groups:
+  - name: privacy-guardian
+    rules:
+      - alert: PrivacyGuardianApiDown
+        expr: up{job="privacy-guardian-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Privacy Guardian API is unavailable.
+      - alert: HighCriticalThreatVolume
+        expr: sum(rate(threat_findings_total{severity="Critical"}[5m])) > 5
+        for: 10m
+        labels:
+          severity: high
+        annotations:
+          summary: Critical threat findings are increasing.
+
