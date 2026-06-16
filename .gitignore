@@ -10,4 +10,5 @@ android-app/build/
 android-app/app/build/
 android-app/local.properties
 android-sdk/
+.android/
 *.apk

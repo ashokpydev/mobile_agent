@@ -41,7 +41,7 @@ public class MainActivity extends Activity {
         root.setPadding(dp(20), dp(20), dp(20), dp(24));
         scrollView.addView(root);
 
-        TextView title = text("Privacy Guardian", 26, "#17202f", true);
+        TextView title = text("SentryNet", 26, "#17202f", true);
         root.addView(title);
 
         TextView subtitle = text(
