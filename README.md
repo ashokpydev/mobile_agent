@@ -21,7 +21,10 @@ exposure, then returns explainable risk scores and recommendations.
 - Opt-in harmful/illegal content safety scan for concrete indicators such as explicit threats,
   violent extremist recruitment indicators, child-safety risks, financial crime, dangerous weapon
   instructions, targeted-violence indicators, and adult media labels from on-device classifiers.
+- Private nudity image popup with Delete and Skip options, without showing explicit previews.
 - Download Guard policy to block, warn, or allow adult/explicit video downloads before saving.
+- Short redacted action logging with date/time for previous app actions.
+- Security headers, strict production config validation, and tamper-evident action log signatures.
 - LangGraph-ready agent orchestration layer for natural-language security Q&A.
 - Async FastAPI foundation with Pydantic v2 and SQLAlchemy models.
 - Docker, Kubernetes, CI, monitoring rules, and enterprise security documentation.
@@ -36,6 +39,20 @@ uvicorn app.main:app --reload
 ```
 
 Open `http://localhost:8000/docs`.
+
+## Android App
+
+A native Android app scaffold lives in `android-app/`. It installs as **Privacy Guardian** and
+currently provides a local camera-permission audit for installed apps, risk scoring for suspicious
+permission combinations, and shortcuts into Android privacy settings.
+
+```bash
+cd android-app
+gradle assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+See `docs/architecture/android-app.md` for details and current Android camera-access limits.
 
 ## Example Requests
 
@@ -124,9 +141,23 @@ app/
     agent/             AI agent orchestration
     detection/         permissions, fraud, phishing, PII engines
     threat_intel/      threat feed adapters
+android-app/           Native Android installable app scaffold
 docs/                  architecture, API, schema, threat model, hardening
 deploy/                Kubernetes and monitoring assets
 tests/                 unit and API tests
+```
+
+## Action Logs
+
+The backend writes a short privacy-safe action line to `logs/actions.log` for protected actions.
+Each line includes date/time, actor, action, a shortened pseudonymous device hash, and a redacted
+summary. Each line includes an HMAC signature chained to the previous line so tampering can be
+detected. Raw messages, files, URLs with secrets, and explicit media content should not be logged.
+
+Example:
+
+```text
+2026-06-16T10:15:30+00:00 | actor=api-key-client | action=analysis.malware | device=abc123def456 | Malware indicator scan apps=3 alert=True | sig=...
 ```
 
 ## Roadmap

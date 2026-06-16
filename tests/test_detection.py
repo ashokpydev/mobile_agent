@@ -170,6 +170,27 @@ def test_content_safety_flags_adult_video_from_media_labels() -> None:
     assert result.findings[0].severity == Severity.medium
 
 
+def test_content_safety_flags_nudity_image_from_media_labels() -> None:
+    result = ContentSafetyDetector().scan(
+        ContentSafetyScanRequest(
+            device_id="device-1",
+            enabled=True,
+            items=[
+                ContentItem(
+                    item_id="image-1",
+                    content_type="image",
+                    source="gallery",
+                    file_name="gallery_image.jpg",
+                    media_labels=["nudity"],
+                )
+            ],
+        )
+    )
+
+    assert result.findings[0].category == "adult_sexual_content"
+    assert "delete the file" in result.findings[0].recommended_action
+
+
 def test_download_guard_blocks_adult_video_download() -> None:
     result = DownloadGuard().evaluate(
         DownloadGuardRequest(

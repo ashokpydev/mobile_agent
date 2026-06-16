@@ -25,7 +25,12 @@ dev = [
   "pytest>=8.3.0",
   "pytest-asyncio>=0.23.8",
   "ruff>=0.6.0",
+  "bandit[toml]>=1.7.9",
+  "pip-audit>=2.7.3",
 ]
+
+[tool.bandit]
+exclude_dirs = ["tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

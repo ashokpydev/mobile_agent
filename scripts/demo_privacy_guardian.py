@@ -98,12 +98,12 @@ def main() -> None:
         [
             "Feature toggle is ON.",
             "A message contains an explicit threat indicator.",
-            "A gallery video is labeled adult or sexually explicit by on-device media analysis.",
+            "A gallery image is labeled nudity by on-device media analysis.",
             "No broad political or opinion-based labeling is performed.",
         ],
         [
             "Do not forward the content.",
-            "Show a private popup without explicit thumbnails.",
+            "Show a private popup with Delete and Skip without explicit thumbnails.",
             "Preserve evidence and report through lawful safety channels.",
             "Keep scanning off unless the user explicitly enables it.",
         ],

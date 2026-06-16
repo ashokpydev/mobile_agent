@@ -17,5 +17,10 @@
 - Use separate production, staging, and development credentials.
 - Add SAST/DAST checks before commercial deployment.
 - Persist audit events to append-only storage.
+- Keep local action logs short, redacted, rotated, and excluded from Git.
+- Verify tamper-evident audit signatures during incident review.
+- Enable Bandit and pip-audit in CI for every pull request.
+- Configure trusted hosts and CORS allow-lists for production.
+- Fail production boot when default development secrets are present.
 - Enforce raw artifact retention of zero by default.
 - Add consent receipts for notification, SMS, file, OCR, and accessibility-powered scans.

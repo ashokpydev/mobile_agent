@@ -17,6 +17,9 @@ jobs:
         run: pip install ".[dev]"
       - name: Lint
         run: ruff check app tests
+      - name: Static security scan
+        run: bandit -q -r app
+      - name: Dependency vulnerability scan
+        run: pip-audit
       - name: Test
         run: pytest
-

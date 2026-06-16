@@ -437,6 +437,24 @@
         font-weight: 800;
       }
 
+      .modal-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 14px;
+      }
+
+      .danger-action {
+        border: 0;
+        border-radius: 8px;
+        background: var(--danger);
+        color: #fff;
+        padding: 10px 13px;
+        font: inherit;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
       .modal-body {
         padding: 16px;
       }
@@ -684,26 +702,26 @@
         contentSafety: {
           title: "Opt-in illegal content safety scan",
           summary: "This scan runs only when the user turns it on. It checks concrete harmful, illegal, or adult media indicators, not broad political opinions.",
-          input: "SMS: message says to attack a public crowd tomorrow\nImage OCR: fake ID and stolen card sale\nVideo: private_video.mp4 labels adult, nudity, explicit sexual",
+          input: "SMS: message says to attack a public crowd tomorrow\nImage: gallery_image.jpg labels nudity\nImage OCR: fake ID and stolen card sale",
           score: 85,
           badge: ["High Risk", "high"],
           findings: [
             ["Explicit threat indicator", "A message contains language indicating possible harm toward people or a public place."],
             ["Financial crime indicator", "OCR text contains fake ID or stolen card trade language."],
-            ["Adult video indicator", "A gallery video was labeled as adult or sexually explicit by on-device media analysis."]
+            ["Nudity image indicator", "A gallery image was labeled as nudity by on-device media analysis."]
           ],
           actions: [
             "Do not forward or amplify the content.",
-            "Show private popups only; do not display explicit thumbnails in alerts.",
+            "Suggest Delete or Skip in a private popup without showing the image.",
             "Preserve evidence and report through lawful safety channels.",
             "Keep the feature off unless the user explicitly enables scanning."
           ],
           metrics: [45, 39, 85, 54, 38],
           adultAlert: {
-            file: "private_video.mp4",
+            file: "gallery_image.jpg",
             source: "Gallery",
-            category: "Adult/explicit video indicator",
-            action: "Review privately, move to secure storage, or delete it if it should not be on this device."
+            category: "Nudity image indicator",
+            action: "Delete the image if it should not remain on this device, or skip to keep it."
           }
         },
         downloadGuard: {
@@ -843,7 +861,7 @@
           showMalwareAlert(data.alert);
         }
         if (mode === "contentSafety" && contentSafetyEnabled && data.adultAlert) {
-          showAdultContentAlert(data.adultAlert);
+          showNudityImageAlert(data.adultAlert);
         }
         if (mode === "downloadGuard" && downloadGuardEnabled && data.blockAlert) {
           showDownloadBlockedAlert(data.blockAlert);
@@ -862,16 +880,34 @@
         malwareModal.classList.add("open");
       }
 
-      function showAdultContentAlert(alert) {
+      function showNudityImageAlert(alert) {
         malwareBody.innerHTML = `
           <p><strong>File:</strong> ${alert.file}</p>
           <p><strong>Source:</strong> ${alert.source}</p>
           <p><strong>Category:</strong> ${alert.category}</p>
           <p><strong>Recommended action:</strong> ${alert.action}</p>
           <p><strong>Privacy:</strong> No thumbnail or explicit preview is shown in this alert.</p>
+          <div class="modal-actions">
+            <button class="danger-action" id="deleteMedia">Delete</button>
+            <button class="secondary" id="skipMedia">Skip</button>
+          </div>
         `;
-        document.getElementById("malwareTitle").textContent = "Adult video indicator found";
+        document.getElementById("malwareTitle").textContent = "Nudity image found";
         malwareModal.classList.add("open");
+        document.getElementById("deleteMedia").addEventListener("click", () => {
+          malwareBody.innerHTML = `
+            <p><strong>Action selected:</strong> Delete</p>
+            <p>The image would be deleted locally by the Android app after user confirmation.</p>
+            <p><strong>Privacy:</strong> No image content was uploaded or displayed.</p>
+          `;
+        });
+        document.getElementById("skipMedia").addEventListener("click", () => {
+          malwareBody.innerHTML = `
+            <p><strong>Action selected:</strong> Skip</p>
+            <p>The image remains on the device. No deletion action was taken.</p>
+            <p><strong>Privacy:</strong> No image content was uploaded or displayed.</p>
+          `;
+        });
       }
 
       function showDownloadBlockedAlert(alert) {

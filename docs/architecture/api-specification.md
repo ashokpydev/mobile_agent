@@ -67,8 +67,9 @@ The `enabled` flag must be true for scanning to occur. The scanner is limited to
 harmful/illegal indicators such as explicit threats, violent extremist recruitment indicators,
 child-safety exploitation risk, financial crime, dangerous weapons instructions, and targeted
 violence. It can also flag adult or sexually explicit media labels generated on-device so the app
-can show a private popup without uploading private videos or showing explicit thumbnails. It should
-not be used for broad political opinion monitoring.
+can show a private popup without uploading private media or showing explicit thumbnails. For nudity
+image findings, the mobile client should offer user-confirmed `Delete` and `Skip` actions locally.
+It should not be used for broad political opinion monitoring.
 
 ## Download Guard
 
