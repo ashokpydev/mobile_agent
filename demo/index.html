@@ -112,6 +112,11 @@
         margin-bottom: 18px;
       }
 
+      .feature-map {
+        grid-template-columns: 1.05fr 1.95fr;
+        margin-bottom: 18px;
+      }
+
       .panel {
         background: var(--panel);
         border: 1px solid var(--line);
@@ -160,6 +165,71 @@
       .trust-row {
         grid-template-columns: repeat(5, minmax(0, 1fr));
         margin-bottom: 18px;
+      }
+
+      .feature-panel {
+        padding: 18px;
+      }
+
+      .feature-panel h2 {
+        margin-bottom: 8px;
+      }
+
+      .feature-panel p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      .feature-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .feature-item {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        padding: 12px;
+        min-height: 92px;
+      }
+
+      .feature-item strong {
+        display: block;
+        margin-bottom: 5px;
+      }
+
+      .feature-item span {
+        color: var(--muted);
+        display: block;
+        font-size: 13px;
+        line-height: 1.35;
+      }
+
+      .apk-list {
+        margin-top: 14px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .apk-item {
+        border-left: 4px solid var(--accent);
+        background: #f8fafc;
+        padding: 10px 12px;
+        border-radius: 0 8px 8px 0;
+      }
+
+      .apk-item strong {
+        display: block;
+        margin-bottom: 4px;
+      }
+
+      .apk-item span {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.35;
       }
 
       .trust {
@@ -482,9 +552,11 @@
 
       @media (max-width: 900px) {
         .score-grid,
+        .feature-map,
         .trust-row,
         .workspace,
-        .split {
+        .split,
+        .feature-list {
           grid-template-columns: 1fr;
         }
 
@@ -504,7 +576,7 @@
           <div class="mark">PG</div>
           <div>
             <h1>Mobile Privacy Guardian</h1>
-            <p class="subtitle">AI-powered privacy and fraud protection demo</p>
+            <p class="subtitle">APK feature map and AI-powered privacy demo</p>
           </div>
         </div>
         <div class="status">Demo ready</div>
@@ -512,6 +584,42 @@
     </header>
 
     <main>
+      <section class="grid feature-map" aria-label="APK and platform features">
+        <div class="panel feature-panel">
+          <h2>Available in this APK</h2>
+          <p>The checked-in Android APK is a local camera-permission audit tool named SentryNet.</p>
+          <div class="apk-list">
+            <div class="apk-item">
+              <strong>Camera access scan</strong>
+              <span>Lists installed apps that request Android camera permission.</span>
+            </div>
+            <div class="apk-item">
+              <strong>Risk scoring</strong>
+              <span>Ranks camera apps higher when they also request microphone, SMS, overlays, accessibility, APK installs, or precise location.</span>
+            </div>
+            <div class="apk-item">
+              <strong>Settings shortcuts</strong>
+              <span>Opens Privacy Dashboard, Camera Permission Manager, installed-app settings, and per-app settings.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel feature-panel">
+          <h2>Platform features shown below</h2>
+          <p>The backend and demo UI model the broader Mobile Privacy Guardian product surface.</p>
+          <div class="feature-list">
+            <div class="feature-item"><strong>Permission intelligence</strong><span>Dangerous permission and special-access review.</span></div>
+            <div class="feature-item"><strong>Fraud messages</strong><span>SMS, email, notification, OTP, and KYC scam detection.</span></div>
+            <div class="feature-item"><strong>Phishing URLs</strong><span>Obfuscation, typosquatting, suspicious TLD, and unsafe transport checks.</span></div>
+            <div class="feature-item"><strong>Sensitive data discovery</strong><span>PAN, Aadhaar-like IDs, cards, CVV, IFSC, keys, tokens, recovery phrases, and wallets.</span></div>
+            <div class="feature-item"><strong>Malware indicators</strong><span>Risky package, installer, accessibility, overlay, SMS, and malicious-domain signals.</span></div>
+            <div class="feature-item"><strong>Opt-in content safety</strong><span>User-controlled harmful-content and private-media indicators with no explicit preview.</span></div>
+            <div class="feature-item"><strong>Download Guard</strong><span>Blocks, warns, or allows adult downloads before saving.</span></div>
+            <div class="feature-item"><strong>Privacy controls</strong><span>Consent gates, zero raw retention, redacted audits, and policy-controlled AI.</span></div>
+          </div>
+        </div>
+      </section>
+
       <section class="grid score-grid" aria-label="Privacy scores">
         <div class="panel score">
           <div class="label">Privacy score</div>
