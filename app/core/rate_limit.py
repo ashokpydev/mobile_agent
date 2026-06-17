@@ -1,6 +1,5 @@
 import time
 from collections import defaultdict, deque
-from collections.abc import Deque
 
 from fastapi import Header, HTTPException, status
 
@@ -9,7 +8,7 @@ from app.core.config import settings
 
 class SlidingWindowRateLimiter:
     def __init__(self) -> None:
-        self._requests: dict[str, Deque[float]] = defaultdict(deque)
+        self._requests: dict[str, deque[float]] = defaultdict(deque)
 
     def check(self, key: str) -> None:
         now = time.monotonic()

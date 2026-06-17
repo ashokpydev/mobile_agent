@@ -18,6 +18,7 @@ import android.graphics.Color;
 import android.media.MediaMetadataRetriever;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.net.VpnService;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -38,15 +39,20 @@ import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class MainActivity extends Activity {
     private static final int REQUEST_READ_SMS = 10;
     private static final int REQUEST_READ_MEDIA = 11;
     private static final int REQUEST_PICK_MEDIA = 20;
+    private static final int REQUEST_PICK_BROWSER_HISTORY = 21;
+    private static final int REQUEST_BROWSER_VPN = 22;
     private static final String BG = "#f3f6fa";
     private static final String PANEL = "#ffffff";
     private static final String INK = "#071426";
@@ -70,6 +76,7 @@ public class MainActivity extends Activity {
     private String activeMode = "permissions";
     private boolean contentSafetyEnabled = false;
     private boolean downloadGuardEnabled = true;
+    private boolean browserMonitorEnabled = false;
     private String selectedMediaInfo = "";
     private Uri selectedMediaUri;
     private volatile boolean cancelMediaScan = false;
@@ -98,6 +105,7 @@ public class MainActivity extends Activity {
     private void loadPolicySettings() {
         contentSafetyEnabled = AppSettings.contentSafetyEnabled(this);
         downloadGuardEnabled = AppSettings.downloadBlockingEnabled(this);
+        browserMonitorEnabled = AppSettings.browserMonitorEnabled(this);
     }
 
     private View buildContent() {
@@ -414,9 +422,10 @@ public class MainActivity extends Activity {
     private void renderScanMenu() {
         scanMenu.removeAllViews();
         addScanButton("Permission intelligence", "Scan", "permissions");
-        addScanButton("Fraud message", "Analyze", "message");
+        addScanButton("Message threats", "Analyze", "message");
         addScanButton("Phishing URL", "Check", "url");
         addScanButton("Sensitive data", "Detect", "data");
+        addScanButton("Browser data alert", "Clean", "browser");
         addScanButton("Malware app alert", "Review", "malware");
         addScanButton("Illegal content safety", contentSafetyEnabled ? "On" : "Off", "content");
         addScanButton("Download guard", downloadGuardEnabled ? "Block" : "Allow", "download");
@@ -495,6 +504,24 @@ public class MainActivity extends Activity {
                 renderScores(metricsFor(result));
                 renderResult(result);
             }), marginTop(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44)), 10));
+        }
+        if ("browser".equals(mode)) {
+            inputArea.addView(primaryButton("Import browser history file", view -> pickBrowserHistoryFile()), marginTop(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44)), 10));
+            inputArea.addView(outlineButton("Paste browser data and scan", view -> {
+                String clipboard = readClipboardText();
+                if (clipboard.length() == 0) {
+                    Toast.makeText(this, "Clipboard has no browser data to scan", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                currentInput.setText(clipboard);
+                ScanData result = analyzeBrowserData(clipboard);
+                renderScores(metricsFor(result));
+                renderResult(result);
+            }), marginTop(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44)), 10));
+            inputArea.addView(outlineButton(browserMonitorEnabled ? "Disable VPN/DNS monitor" : "Enable VPN/DNS monitor", view -> toggleBrowserMonitor()), marginTop(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44)), 10));
+            inputArea.addView(outlineButton("Open Chrome data settings", view -> openAppDetails("com.android.chrome")), marginTop(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44)), 10));
+            inputArea.addView(outlineButton("Open Firefox data settings", view -> openAppDetails("org.mozilla.firefox")), marginTop(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44)), 10));
+            inputArea.addView(outlineButton("Open Edge data settings", view -> openAppDetails("com.microsoft.emmx")), marginTop(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44)), 10));
         }
         if ("malware".equals(mode)) {
             inputArea.addView(primaryButton("Scan installed apps", view -> runCurrentMode()), marginTop(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(44)), 10));
@@ -597,6 +624,7 @@ public class MainActivity extends Activity {
         if ("message".equals(mode)) return analyzeMessage(input);
         if ("url".equals(mode)) return analyzeUrl(input);
         if ("data".equals(mode)) return analyzeSensitiveData(input);
+        if ("browser".equals(mode)) return analyzeBrowserData(input);
         if ("malware".equals(mode)) return analyzeMalware(input);
         if ("content".equals(mode)) return analyzeContentSafety(input);
         return analyzeDownloadGuard(input);
@@ -782,7 +810,85 @@ public class MainActivity extends Activity {
                     Toast.makeText(this, cancelMediaScan ? "Media scan cancelled" : "Selected media scanned on device", Toast.LENGTH_SHORT).show();
                 });
             }).start();
+        } else if (requestCode == REQUEST_PICK_BROWSER_HISTORY && resultCode == RESULT_OK && data != null && data.getData() != null) {
+            Uri uri = data.getData();
+            String browserData = readTextFromUri(uri);
+            if (browserData.length() == 0) {
+                Toast.makeText(this, "Could not read browser history file", Toast.LENGTH_LONG).show();
+                return;
+            }
+            if (currentInput != null) {
+                currentInput.setText(browserData);
+            }
+            ScanData result = analyzeBrowserData(browserData);
+            showCompletedResult(result);
+            Toast.makeText(this, "Imported browser data scanned locally", Toast.LENGTH_SHORT).show();
+        } else if (requestCode == REQUEST_BROWSER_VPN) {
+            if (resultCode == RESULT_OK) {
+                startBrowserMonitorService(BrowserPrivacyVpnService.ACTION_ENABLE);
+                Toast.makeText(this, "Browser VPN/DNS monitor consent enabled", Toast.LENGTH_LONG).show();
+            } else {
+                Toast.makeText(this, "VPN/DNS monitor permission was not granted", Toast.LENGTH_LONG).show();
+            }
         }
+    }
+
+    private void pickBrowserHistoryFile() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[] {"text/*", "text/csv", "application/json", "text/html", "application/xhtml+xml"});
+        try {
+            startActivityForResult(intent, REQUEST_PICK_BROWSER_HISTORY);
+        } catch (ActivityNotFoundException ignored) {
+            Toast.makeText(this, "No file picker is available on this device", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private String readTextFromUri(Uri uri) {
+        try (InputStream input = getContentResolver().openInputStream(uri);
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            if (input == null) {
+                return "";
+            }
+            byte[] buffer = new byte[4096];
+            int total = 0;
+            int read;
+            while ((read = input.read(buffer)) != -1 && total < 512 * 1024) {
+                output.write(buffer, 0, read);
+                total += read;
+            }
+            return output.toString("UTF-8");
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private void toggleBrowserMonitor() {
+        if (browserMonitorEnabled) {
+            startBrowserMonitorService(BrowserPrivacyVpnService.ACTION_DISABLE);
+            browserMonitorEnabled = false;
+            Toast.makeText(this, "Browser VPN/DNS monitor disabled", Toast.LENGTH_SHORT).show();
+            renderMode(activeMode);
+            return;
+        }
+
+        Intent prepare = VpnService.prepare(this);
+        if (prepare != null) {
+            startActivityForResult(prepare, REQUEST_BROWSER_VPN);
+            return;
+        }
+        startBrowserMonitorService(BrowserPrivacyVpnService.ACTION_ENABLE);
+        browserMonitorEnabled = true;
+        Toast.makeText(this, "Browser VPN/DNS monitor consent enabled", Toast.LENGTH_LONG).show();
+        renderMode(activeMode);
+    }
+
+    private void startBrowserMonitorService(String action) {
+        Intent service = new Intent(this, BrowserPrivacyVpnService.class);
+        service.setAction(action);
+        startService(service);
+        browserMonitorEnabled = BrowserPrivacyVpnService.ACTION_ENABLE.equals(action);
     }
 
     private String describeMedia(Uri uri) {
@@ -1085,31 +1191,122 @@ public class MainActivity extends Activity {
     }
 
     private ScanData analyzeMessage(String input) {
-        String lower = input.toLowerCase(Locale.US);
+        List<SmsThreat> smsThreats = findSuspiciousSmsMessages(input);
         int score = 0;
         List<Finding> items = new ArrayList<>();
+
+        if (!smsThreats.isEmpty()) {
+            for (SmsThreat threat : smsThreats) {
+                score = Math.max(score, threat.score);
+                items.add(new Finding(
+                    "Suspicious message from " + threat.sender,
+                    "Score " + threat.score + "/100. Signals: " + joinReasons(threat.reasons) + ". Text: " + threat.preview,
+                    null
+                ));
+            }
+        }
+
+        String lower = input.toLowerCase(Locale.US);
         if (containsAny(lower, "otp", "password", "pin", "cvv")) {
             score += 30;
-            items.add(new Finding("Credential request", "The message asks for OTP, password, PIN, or payment secrets.", null));
+            if (smsThreats.isEmpty()) {
+                items.add(new Finding("Credential request", "The message asks for OTP, password, PIN, or payment secrets.", null));
+            }
         }
         if (containsAny(lower, "urgent", "final warning", "blocked", "expire", "suspend", "immediately")) {
             score += 25;
-            items.add(new Finding("Pressure language", "Urgency and account-blocking language are common fraud tactics.", null));
+            if (smsThreats.isEmpty()) {
+                items.add(new Finding("Pressure language", "Urgency and account-blocking language are common fraud tactics.", null));
+            }
         }
         if (containsAny(lower, "bank", "kyc", "upi", "refund", "reward", "lottery", "parcel")) {
             score += 15;
-            items.add(new Finding("Financial lure", "The message uses banking, payment, reward, or delivery context.", null));
+            if (smsThreats.isEmpty()) {
+                items.add(new Finding("Financial lure", "The message uses banking, payment, reward, or delivery context.", null));
+            }
         }
         if (hasUrl(lower)) {
             score += 25;
-            items.add(new Finding("Embedded link", "The message contains a link. Open official apps manually instead.", null));
+            if (smsThreats.isEmpty()) {
+                items.add(new Finding("Embedded link", "The message contains a link. Open official apps manually instead.", null));
+            }
+        }
+        if (containsAny(lower, ".apk", " apk", "install app", "download app", "unknown sources", "install unknown apps", "sideload")) {
+            score += 35;
+            if (smsThreats.isEmpty()) {
+                items.add(new Finding("Malware install lure", "The message asks you to install an APK or enable unknown-source installs.", null));
+            }
+        }
+        if (containsAny(lower, "play protect", "disable antivirus", "turn off antivirus", "accessibility", "notification access", "draw over other apps", "overlay permission")) {
+            score += 30;
+            if (smsThreats.isEmpty()) {
+                items.add(new Finding("Dangerous access request", "The message asks for device protection changes or powerful app access.", null));
+            }
         }
         if (items.isEmpty()) {
-            items.add(new Finding("No major fraud markers", "No OTP request, pressure phrase, financial lure, or URL was detected.", null));
+            items.add(new Finding("No major message threat markers", "No OTP request, pressure phrase, malware install lure, dangerous access request, financial lure, or URL was detected.", null));
         }
-        return result("Fraud message analysis", "Local scan checked urgency, OTP abuse, links, and social-engineering language.", input, score, items,
-            Arrays.asList("Do not share OTPs or passwords.", "Verify requests inside the official app.", "Block and report suspicious senders."),
+        return result("Message threat analysis", "Local scan checked recent text messages for fraud, malware install lures, risky access requests, and suspicious links.", input, score, items,
+            Arrays.asList("Do not share OTPs or passwords.", "Do not install APKs from messages or enable unknown-source installs.", "Verify requests inside the official app.", "Block and report suspicious senders."),
             70 - score / 3, 72 - score / 2, score, 66, 22);
+    }
+
+    private List<SmsThreat> findSuspiciousSmsMessages(String input) {
+        List<SmsThreat> threats = new ArrayList<>();
+        String[] blocks = input.split("\\n\\n+");
+        for (String block : blocks) {
+            String trimmed = block.trim();
+            if (trimmed.length() == 0 || !trimmed.toLowerCase(Locale.US).startsWith("from:")) {
+                continue;
+            }
+            String[] lines = trimmed.split("\\n", 2);
+            String sender = lines[0].replaceFirst("(?i)^from:\\s*", "").trim();
+            String body = lines.length > 1 ? lines[1].trim() : "";
+            SmsThreat threat = scoreSmsThreat(sender.length() == 0 ? "unknown" : sender, body);
+            if (threat.score >= 35) {
+                threats.add(threat);
+            }
+        }
+        return threats;
+    }
+
+    private SmsThreat scoreSmsThreat(String sender, String body) {
+        String lower = body.toLowerCase(Locale.US);
+        int score = 0;
+        List<String> reasons = new ArrayList<>();
+        if (containsAny(lower, ".apk", " apk", "install app", "download app", "security update", "cleaner app", "scanner app")) {
+            score += 35;
+            reasons.add("APK/install lure");
+        }
+        if (containsAny(lower, "unknown sources", "install unknown apps", "unknown app installs", "sideload")) {
+            score += 35;
+            reasons.add("unknown-source install request");
+        }
+        if (containsAny(lower, "play protect", "disable antivirus", "turn off antivirus", "security scan disabled")) {
+            score += 35;
+            reasons.add("disable protection request");
+        }
+        if (containsAny(lower, "accessibility", "notification access", "draw over other apps", "overlay permission")) {
+            score += 30;
+            reasons.add("dangerous access request");
+        }
+        if (containsAny(lower, "otp", "password", "pin", "cvv")) {
+            score += 25;
+            reasons.add("credential request");
+        }
+        if (containsAny(lower, "urgent", "final warning", "blocked", "expire", "suspend", "immediately")) {
+            score += 20;
+            reasons.add("pressure language");
+        }
+        if (containsAny(lower, "bank", "kyc", "upi", "refund", "reward", "lottery", "parcel", "courier", "bill")) {
+            score += 12;
+            reasons.add("trusted-service lure");
+        }
+        if (hasUrl(lower)) {
+            score += 22;
+            reasons.add("embedded link");
+        }
+        return new SmsThreat(sender, clamp(score), reasons, preview(body));
     }
 
     private ScanData analyzeUrl(String input) {
@@ -1169,6 +1366,77 @@ public class MainActivity extends Activity {
         return result("Sensitive data discovery", "Local scan looked for identity, banking, card, token, and recovery-secret patterns.", input, score, items,
             Arrays.asList("Move sensitive notes to an encrypted vault.", "Rotate exposed keys or tokens.", "Delete CVV and recovery phrases from plain text."),
             78 - score / 3, 76 - score / 3, Math.min(70, score), 68, score);
+    }
+
+    private ScanData analyzeBrowserData(String input) {
+        String lower = input.toLowerCase(Locale.US);
+        int score = 0;
+        int urlCount = 0;
+        int trackerCount = 0;
+        int sensitiveUrlCount = 0;
+        List<Finding> items = new ArrayList<>();
+
+        Matcher matcher = Pattern.compile("https?://[^\\s\"'<>]+|www\\.[^\\s\"'<>]+", Pattern.CASE_INSENSITIVE).matcher(input);
+        while (matcher.find() && urlCount < 80) {
+            urlCount++;
+            String url = matcher.group();
+            String urlLower = url.toLowerCase(Locale.US);
+            String domain = extractDomain(urlLower);
+            int urlScore = 0;
+            List<String> reasons = new ArrayList<>();
+
+            if (urlLower.startsWith("http://")) {
+                urlScore += 20;
+                reasons.add("unsafe HTTP");
+            }
+            if (BrowserPrivacyFeed.isTrackerDomain(domain)) {
+                urlScore += 18;
+                trackerCount++;
+                reasons.add("tracking or ad domain");
+            }
+            if (BrowserPrivacyFeed.isDataBrokerDomain(domain)) {
+                urlScore += 30;
+                reasons.add("data broker style domain");
+            }
+            if (containsAny(urlLower, "email=", "phone=", "mobile=", "otp=", "token=", "session=", "password=", "pan=", "aadhaar=") || SensitiveTextGuard.containsSensitiveData(url)) {
+                urlScore += 35;
+                sensitiveUrlCount++;
+                reasons.add("personal data in URL");
+            }
+            if (containsAny(domain, ".click", ".top", ".xyz", ".loan", ".work") || containsAny(urlLower, "login", "verify", "kyc", "secure-update")) {
+                urlScore += 18;
+                reasons.add("phishing-like URL pattern");
+            }
+
+            if (urlScore >= 25) {
+                score += Math.min(45, urlScore);
+                items.add(new Finding(
+                    "Risky browser entry: " + domain,
+                    "Signals: " + joinReasons(reasons) + ". URL: " + SensitiveTextGuard.redact(url),
+                    null
+                ));
+            }
+        }
+
+        if (urlCount == 0 && lower.trim().length() > 0) {
+            score += 10;
+            items.add(new Finding("No URLs extracted", "Paste browser history export text, copied history rows, or shared URLs to scan website privacy risk.", null));
+        }
+        if (trackerCount > 3) {
+            score += 20;
+            items.add(new Finding("Repeated tracker exposure", "Multiple tracker or advertising domains were found in the provided browser data.", null));
+        }
+        if (sensitiveUrlCount > 0) {
+            score += 25;
+            items.add(new Finding("Personal info in browser data", "One or more URLs appear to contain OTP, phone, email, token, or identity data.", null));
+        }
+        if (items.isEmpty()) {
+            items.add(new Finding("No risky browser entries", "No tracker, data-broker, unsafe HTTP, personal-data URL, or phishing-like marker was detected.", null));
+        }
+
+        return result("Browser data alert", "Local scan checked user-provided browser data with feed " + BrowserPrivacyFeed.VERSION + " for trackers, data brokers, unsafe sites, and personal info in URLs.", input, score, items,
+            Arrays.asList("Clear history and site data for flagged domains.", "Use the browser data settings shortcuts below to clean app storage.", "Remove saved passwords or sessions for suspicious websites.", "Avoid sharing browser history unless the scan is authenticated and redacted.", "Use browser privacy settings to block third-party cookies and trackers."),
+            76 - score / 3, 74 - score / 3, score, 66, Math.min(90, sensitiveUrlCount * 30 + trackerCount * 6));
     }
 
     private ScanData analyzeMalware(String input) {
@@ -1279,6 +1547,7 @@ public class MainActivity extends Activity {
         if ("message".equals(mode)) return "Final warning: Your bank KYC is expired. Account will be blocked in 30 minutes. Share OTP at http://bit.ly/secure-kyc";
         if ("url".equals(mode)) return "http://sbi-login-secure.example.click@evil.test/login";
         if ("data".equals(mode)) return "PAN ABCDE1234F\nAadhaar 1234 5678 9012\nsecret_key=sk_test_1234567890abcdef123456\nCVV: 123";
+        if ("browser".equals(mode)) return "https://tracker.example/collect?email=ashok@example.com\nhttp://old-login.example.click/verify\nhttps://doubleclick.net/pagead/id";
         if ("malware".equals(mode)) return "Bank Security Update\nSignals: Accessibility, overlay, READ_SMS, unknown installer, malicious-example.test";
         if ("content".equals(mode)) return "Message says to attack a public crowd tomorrow\nImage labels: nudity\nOCR: fake ID and stolen card sale";
         return "URL: https://example.test/downloads/adult-video.mp4\nFile: adult-video.mp4\nSource: Chrome\nLabels: adult, explicit sexual";
@@ -1301,8 +1570,41 @@ public class MainActivity extends Activity {
         return value.contains("http://") || value.contains("https://") || value.contains("www.");
     }
 
+    private String extractDomain(String url) {
+        String value = url;
+        if (value.startsWith("http://")) {
+            value = value.substring(7);
+        } else if (value.startsWith("https://")) {
+            value = value.substring(8);
+        }
+        if (value.startsWith("www.")) {
+            value = value.substring(4);
+        }
+        int slash = value.indexOf('/');
+        if (slash >= 0) {
+            value = value.substring(0, slash);
+        }
+        int query = value.indexOf('?');
+        if (query >= 0) {
+            value = value.substring(0, query);
+        }
+        int port = value.indexOf(':');
+        if (port >= 0) {
+            value = value.substring(0, port);
+        }
+        return value.length() == 0 ? "unknown" : value;
+    }
+
     private boolean matches(String value, String regex) {
         return Pattern.compile(regex, Pattern.CASE_INSENSITIVE).matcher(value).find();
+    }
+
+    private String preview(String value) {
+        String normalized = value.replaceAll("\\s+", " ").trim();
+        if (normalized.length() <= 120) {
+            return normalized;
+        }
+        return normalized.substring(0, 117) + "...";
     }
 
     private void refreshCameraAudit() {
@@ -1649,6 +1951,20 @@ public class MainActivity extends Activity {
             this.packageName = packageName;
             this.riskScore = riskScore;
             this.reasons = reasons;
+        }
+    }
+
+    private static final class SmsThreat {
+        final String sender;
+        final int score;
+        final List<String> reasons;
+        final String preview;
+
+        SmsThreat(String sender, int score, List<String> reasons, String preview) {
+            this.sender = sender;
+            this.score = score;
+            this.reasons = reasons;
+            this.preview = preview;
         }
     }
 }

@@ -1,9 +1,11 @@
 __pycache__/
 .pytest_cache/
+.tmp/
 .gradle/
 *.py[cod]
 .venv/
 privacy_guardian.db
+logs/
 logs/*.log
 android-app/.gradle/
 android-app/build/

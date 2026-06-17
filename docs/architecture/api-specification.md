@@ -34,12 +34,23 @@ Response fields:
 `POST /analysis/messages`
 
 Classifies user-submitted message content as `Safe`, `Suspicious`, `High Risk`, or `Critical`.
+The detector checks fraud language, suspicious links, malware install lures, unknown-source install
+requests, protection-disable requests, and dangerous accessibility/notification/overlay access
+requests.
 
 ## URL Analysis
 
 `POST /analysis/urls`
 
 Analyzes URLs, domains, QR payloads, and deep links for phishing indicators.
+
+## Browser Data Alert
+
+Mobile-only local scan for user-provided browser data, such as pasted history exports or shared
+URLs. The app checks tracker/data-broker domains, unsafe HTTP, phishing-like patterns, and URLs
+containing OTP, email, phone, token, or identity data. Android browser history from Chrome,
+Firefox, Edge, Brave, and similar apps remains inside those apps' private sandboxes, so the app
+uses explicit user sharing/import instead of direct hidden access.
 
 ## Sensitive Data Scan
 

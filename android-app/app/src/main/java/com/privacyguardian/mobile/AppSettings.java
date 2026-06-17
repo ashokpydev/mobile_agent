@@ -11,6 +11,7 @@ final class AppSettings {
     static final String REALTIME_ENABLED = "realtime_enabled";
     static final String CONTENT_SAFETY = "content_safety";
     static final String DOWNLOAD_BLOCKING = "download_blocking";
+    static final String BROWSER_MONITOR = "browser_monitor";
     static final String RETENTION_DAYS = "retention_days";
     static final String PARENTAL_MODE = "parental_mode";
 
@@ -46,5 +47,9 @@ final class AppSettings {
 
     static boolean downloadBlockingEnabled(Context context) {
         return prefs(context).getBoolean(DOWNLOAD_BLOCKING, true);
+    }
+
+    static boolean browserMonitorEnabled(Context context) {
+        return prefs(context).getBoolean(BROWSER_MONITOR, false);
     }
 }

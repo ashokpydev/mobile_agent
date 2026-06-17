@@ -58,6 +58,38 @@ def test_fraud_detector_classifies_otp_bank_link_as_high_risk() -> None:
     assert result.recommended_actions
 
 
+def test_message_detector_flags_malware_install_lure() -> None:
+    result = FraudMessageDetector().analyze(
+        MessageAnalysisRequest(
+            source="sms",
+            sender="unknown",
+            text=(
+                "Final warning: install this bank security update APK from "
+                "https://bit.ly/bank-fix and enable unknown sources to continue."
+            ),
+        )
+    )
+
+    categories = {finding.category for finding in result.findings}
+    assert result.risk_score >= 65
+    assert result.classification in {Classification.high_risk, Classification.critical}
+    assert {"malware_install_lure", "unknown_sources_request"} <= categories
+
+
+def test_message_detector_flags_dangerous_access_request() -> None:
+    result = FraudMessageDetector().analyze(
+        MessageAnalysisRequest(
+            source="sms",
+            sender="delivery",
+            text="Your parcel is pending. Download app and allow accessibility plus notification access.",
+        )
+    )
+
+    categories = {finding.category for finding in result.findings}
+    assert "dangerous_access_request" in categories
+    assert result.risk_score >= 30
+
+
 def test_phishing_detector_flags_obfuscated_non_https_url() -> None:
     result = PhishingDetector().analyze(
         UrlAnalysisRequest(url="http://sbi-login-secure.example.click@evil.test/login")
@@ -79,6 +111,20 @@ def test_sensitive_data_detector_masks_pii() -> None:
     assert {"pan", "api_key"} <= labels
     assert result.exposure_score >= 80
     assert all("..." in finding.masked_value for finding in result.findings)
+
+
+def test_sensitive_data_detector_flags_otp_and_personal_info() -> None:
+    result = SensitiveDataDetector().scan(
+        SensitiveDataScanRequest(
+            content="OTP is 123456 for user ashok@example.com and phone +91 98765 43210",
+            source_name="sms",
+        )
+    )
+
+    labels = {finding.label for finding in result.findings}
+    assert {"otp", "email", "phone_number"} <= labels
+    assert result.exposure_score >= 80
+    assert all("123456" not in finding.masked_value for finding in result.findings)
 
 
 def test_malware_detector_flags_known_bad_app_behavior() -> None:

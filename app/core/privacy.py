@@ -9,6 +9,9 @@ from app.core.config import settings
 
 
 SENSITIVE_PATTERNS = [
+    re.compile(r"\b(?:otp|one[-\s]?time password|verification code)\s*(?:is|:|=)?\s*\d{4,8}\b", re.I),
+    re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I),
+    re.compile(r"\b(?:\+?\d{1,3}[-.\s]?)?(?:\d{10}|\d{5}[-.\s]\d{5})\b"),
     re.compile(r"\b\d{4}\s?\d{4}\s?\d{4}\b"),
     re.compile(r"\b[A-Z]{5}\d{4}[A-Z]\b"),
     re.compile(r"\b(?:\d[ -]*?){13,19}\b"),

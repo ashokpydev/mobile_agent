@@ -10,6 +10,9 @@ from app.services.detection.scoring import clamp_score
 
 
 PII_PATTERNS: list[tuple[str, str, Severity, str]] = [
+    ("otp", r"\b(?:otp|one[-\s]?time password|verification code)\s*(?:is|:|=)?\s*\d{4,8}\b", Severity.critical, "Never share OTPs unless you initiated the action and authenticated the request."),
+    ("email", r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", Severity.medium, "Share email addresses only with trusted, authenticated services."),
+    ("phone_number", r"\b(?:\+?\d{1,3}[-.\s]?)?(?:\d{10}|\d{5}[-.\s]\d{5})\b", Severity.medium, "Avoid sharing phone numbers without user confirmation."),
     ("aadhaar_like", r"\b\d{4}\s?\d{4}\s?\d{4}\b", Severity.high, "Move Aadhaar-like identifiers to a secure vault."),
     ("pan", r"\b[A-Z]{5}\d{4}[A-Z]\b", Severity.high, "Avoid storing PAN numbers in plain text."),
     ("credit_card", r"\b(?:\d[ -]*?){13,19}\b", Severity.critical, "Remove exposed payment-card data immediately."),

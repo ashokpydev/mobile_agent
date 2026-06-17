@@ -164,7 +164,7 @@ class ContentSafetyScanResponse(BaseModel):
     privacy_note: str
 
 
-class DownloadDecision(str, StrEnum):
+class DownloadDecision(StrEnum):
     allow = "allow"
     warn = "warn"
     block = "block"

@@ -20,6 +20,7 @@ public class SettingsActivity extends Activity {
     private CheckBox realtime;
     private CheckBox contentSafety;
     private CheckBox downloadBlocking;
+    private CheckBox browserMonitor;
     private CheckBox parentalMode;
 
     @Override
@@ -49,6 +50,7 @@ public class SettingsActivity extends Activity {
         realtime = checkbox("Realtime media monitoring", AppSettings.realtimeEnabled(this));
         contentSafety = checkbox("Content safety enabled", AppSettings.contentSafetyEnabled(this));
         downloadBlocking = checkbox("Download blocking enabled", AppSettings.downloadBlockingEnabled(this));
+        browserMonitor = checkbox("Browser VPN/DNS monitor consent", AppSettings.browserMonitorEnabled(this));
         parentalMode = checkbox("Parental/admin mode", AppSettings.prefs(this).getBoolean(AppSettings.PARENTAL_MODE, false));
 
         root.addView(backendUrl);
@@ -58,6 +60,7 @@ public class SettingsActivity extends Activity {
         root.addView(realtime);
         root.addView(contentSafety);
         root.addView(downloadBlocking);
+        root.addView(browserMonitor);
         root.addView(parentalMode);
 
         root.addView(button("Save settings", v -> save()));
@@ -101,6 +104,7 @@ public class SettingsActivity extends Activity {
             .putBoolean(AppSettings.REALTIME_ENABLED, realtime.isChecked())
             .putBoolean(AppSettings.CONTENT_SAFETY, contentSafety.isChecked())
             .putBoolean(AppSettings.DOWNLOAD_BLOCKING, downloadBlocking.isChecked())
+            .putBoolean(AppSettings.BROWSER_MONITOR, browserMonitor.isChecked())
             .putBoolean(AppSettings.PARENTAL_MODE, parentalMode.isChecked())
             .apply();
 
@@ -110,6 +114,9 @@ public class SettingsActivity extends Activity {
         } else {
             stopService(service);
         }
+        Intent browserService = new Intent(this, BrowserPrivacyVpnService.class);
+        browserService.setAction(browserMonitor.isChecked() ? BrowserPrivacyVpnService.ACTION_ENABLE : BrowserPrivacyVpnService.ACTION_DISABLE);
+        startService(browserService);
         Toast.makeText(this, "Settings saved", Toast.LENGTH_SHORT).show();
         finish();
     }

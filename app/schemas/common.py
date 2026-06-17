@@ -3,14 +3,14 @@ from enum import StrEnum
 from pydantic import BaseModel, Field
 
 
-class Severity(str, StrEnum):
+class Severity(StrEnum):
     low = "Low"
     medium = "Medium"
     high = "High"
     critical = "Critical"
 
 
-class Classification(str, StrEnum):
+class Classification(StrEnum):
     safe = "Safe"
     suspicious = "Suspicious"
     high_risk = "High Risk"

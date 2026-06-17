@@ -16,6 +16,44 @@ FRAUD_PATTERNS: list[tuple[str, int, str, str]] = [
     (r"\b(urgent|immediately|within \d+ minutes|final warning)\b", 14, "urgency", "Artificial urgency is a social engineering indicator."),
 ]
 
+MALWARE_DELIVERY_PATTERNS: list[tuple[str, int, str, str, str]] = [
+    (
+        r"\b(?:download|install|update|open)\b.{0,60}\b(?:apk|\.apk|app|security update|cleaner|scanner)\b",
+        28,
+        "malware_install_lure",
+        "The message pushes the user to install or update an app, which is a common malware delivery tactic.",
+        "Do not install apps from message links. Use the official app store or the organization's official site.",
+    ),
+    (
+        r"\b(?:enable|allow|turn on)\b.{0,60}\b(?:unknown sources|install unknown apps|unknown app installs|sideload)\b",
+        34,
+        "unknown_sources_request",
+        "The message asks the user to enable sideloading or unknown-source installs.",
+        "Keep unknown-source installs disabled unless you fully trust the source.",
+    ),
+    (
+        r"\b(?:disable|turn off|deactivate)\b.{0,60}\b(?:play protect|antivirus|security scan|device protection)\b",
+        36,
+        "disable_protection_request",
+        "The message asks the user to disable device protection before continuing.",
+        "Do not disable Play Protect or antivirus controls for a message link.",
+    ),
+    (
+        r"\b(?:allow|enable|grant)\b.{0,60}\b(?:accessibility|notification access|draw over other apps|overlay)\b",
+        32,
+        "dangerous_access_request",
+        "The message asks for powerful device access that malware often abuses.",
+        "Do not grant accessibility, notification, overlay, or SMS access to apps installed from links.",
+    ),
+    (
+        r"\b(?:bank|kyc|parcel|courier|tax|refund|electricity|bill)\b.{0,80}\b(?:\.apk|apk|install app|download app)\b",
+        30,
+        "impersonated_app_delivery",
+        "The message combines a trusted-service lure with app-install instructions.",
+        "Verify the request in the official app or website before installing anything.",
+    ),
+]
+
 
 class FraudMessageDetector:
     def analyze(self, payload: MessageAnalysisRequest) -> MessageAnalysisResponse:
@@ -33,6 +71,20 @@ class FraudMessageDetector:
                         score=clamp_score(weight * 3),
                         explanation=explanation,
                         recommendation="Do not tap links or share codes until you verify via an official channel.",
+                        evidence={"pattern": category},
+                )
+            )
+
+        for pattern, weight, category, explanation, recommendation in MALWARE_DELIVERY_PATTERNS:
+            if re.search(pattern, text, flags=re.IGNORECASE):
+                score += weight
+                findings.append(
+                    Finding(
+                        category=category,
+                        severity=severity_from_score(weight * 3),
+                        score=clamp_score(weight * 3),
+                        explanation=explanation,
+                        recommendation=recommendation,
                         evidence={"pattern": category},
                     )
                 )
@@ -76,7 +128,7 @@ class FraudMessageDetector:
     @staticmethod
     def _explain(classification: Classification, findings: list[Finding]) -> str:
         if not findings:
-            return "No strong fraud indicators were detected in the supplied content."
+            return "No strong fraud or malware-delivery indicators were detected in the supplied content."
         reasons = ", ".join(f.category.replace("_", " ") for f in findings[:3])
         return f"Classified as {classification.value} because it contains {reasons} signals."
 
