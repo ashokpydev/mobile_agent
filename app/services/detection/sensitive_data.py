@@ -6,7 +6,7 @@ from app.schemas.analysis import (
     SensitiveDataScanResponse,
 )
 from app.schemas.common import Severity
-from app.services.detection.scoring import clamp_score
+from app.services.detection.scoring import clamp_score, luhn_check
 
 
 PII_PATTERNS: list[tuple[str, str, Severity, str]] = [
@@ -37,6 +37,8 @@ class SensitiveDataDetector:
         for label, pattern, severity, recommendation in PII_PATTERNS:
             for match in re.finditer(pattern, payload.content, flags=re.IGNORECASE | re.DOTALL):
                 value = match.group(0)
+                if label == "credit_card" and not luhn_check(value):
+                    continue
                 findings.append(
                     SensitiveDataFinding(
                         label=label,

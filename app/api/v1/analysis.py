@@ -19,6 +19,7 @@ from app.schemas.analysis import (
     UrlAnalysisRequest,
     UrlAnalysisResponse,
 )
+from app.schemas.common import Severity
 from app.services.audit import AuditLogger
 from app.services.detection.content_safety import ContentSafetyDetector
 from app.services.detection.download_guard import DownloadGuard
@@ -113,15 +114,30 @@ async def scan_content_safety(
     principal: Principal = Depends(require_scope("analysis:write")),
 ) -> ContentSafetyScanResponse:
     result = ContentSafetyDetector().scan(payload)
+    categories = sorted({f.category for f in result.findings})
     audit_logger.event(
         actor=principal.subject,
         action="analysis.content_safety",
         device_id=payload.device_id,
         summary=(
             f"Content safety enabled={payload.enabled}; items={len(payload.items)}; "
-            f"findings={len(result.findings)}"
+            f"findings={len(result.findings)}; categories={categories}"
         ),
     )
+    critical_findings = [f for f in result.findings if f.severity == Severity.critical]
+    if critical_findings:
+        # Durable, tamper-evident record of a critical finding (e.g. child_safety_risk),
+        # independent of whether the client acts on the in-response recommendation.
+        audit_logger.event(
+            actor=principal.subject,
+            action="content_safety.critical_escalation",
+            device_id=payload.device_id,
+            summary=(
+                f"Critical content-safety finding(s) require review: "
+                f"categories={sorted({f.category for f in critical_findings})}; "
+                f"item_ids={sorted({f.item_id for f in critical_findings})}"
+            ),
+        )
     return result
 
 

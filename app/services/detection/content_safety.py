@@ -1,4 +1,5 @@
 import re
+import unicodedata
 
 from app.schemas.analysis import (
     ContentItem,
@@ -63,11 +64,37 @@ CONTENT_PATTERNS: list[tuple[str, re.Pattern[str], int, str, str]] = [
 ]
 
 
+_ZERO_WIDTH_CODEPOINTS = (0x200B, 0x200C, 0x200D, 0x2060, 0xFEFF)
+_ZERO_WIDTH_CHARS = re.compile("[" + "".join(chr(cp) for cp in _ZERO_WIDTH_CODEPOINTS) + "]")
+_LEET_TRANSLATION = str.maketrans({"0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s"})
+_SPACED_LETTERS = re.compile(r"\b(?:[A-Za-z][\s.\-_*]){2,}[A-Za-z]\b")
+
+
+def _normalize_for_matching(text: str) -> str:
+    """Produce a second, de-obfuscated copy of text to run patterns against.
+
+    Catches the cheapest common evasions against the keyword patterns below: unicode
+    homoglyph/fullwidth tricks (NFKC), zero-width joiners inserted mid-word, basic
+    leetspeak substitution, and spelling a keyword out as single letters separated by
+    spaces or punctuation (e.g. "n u d e" or "n.u.d.e"). It does not defeat a
+    determined adversary or replace a real classifier on image/video/audio content.
+    """
+    normalized = unicodedata.normalize("NFKC", text)
+    normalized = _ZERO_WIDTH_CHARS.sub("", normalized)
+    normalized = _SPACED_LETTERS.sub(lambda m: re.sub(r"[\s.\-_*]", "", m.group(0)), normalized)
+    normalized = normalized.translate(_LEET_TRANSLATION)
+    return normalized
+
+
 class ContentSafetyDetector:
     """Opt-in detector for concrete harmful or illegal content indicators.
 
     Image and video support should pass OCR text, captions, audio transcripts, or model labels into
     `ContentItem.text`. The detector intentionally avoids judging broad political opinions.
+
+    This remains keyword/phrase matching, not a real classifier: it is run against both the raw
+    text and a de-obfuscated copy (see `_normalize_for_matching`) to resist trivial evasion, but
+    it is not a substitute for actual image/video/audio content analysis upstream.
     """
 
     def scan(self, payload: ContentSafetyScanRequest) -> ContentSafetyScanResponse:
@@ -114,8 +141,10 @@ class ContentSafetyDetector:
         if not searchable_text:
             return findings
 
+        normalized_text = _normalize_for_matching(searchable_text)
+
         for category, pattern, score, explanation, action in CONTENT_PATTERNS:
-            if pattern.search(searchable_text):
+            if pattern.search(searchable_text) or pattern.search(normalized_text):
                 findings.append(
                     ContentSafetyFinding(
                         item_id=item.item_id,

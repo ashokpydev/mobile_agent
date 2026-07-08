@@ -17,8 +17,9 @@ public class NotificationMonitorService extends NotificationListenerService {
         if (lower.contains("otp") || lower.contains("password") || lower.contains("kyc") || lower.contains("http")) score += 45;
         if (lower.contains("urgent") || lower.contains("blocked") || lower.contains("verify")) score += 25;
         if (score > 0) {
-            ScanHistory.append(this, "notification", score >= 45 ? "Review" : "Info", score, summary);
-            BackendClient.sendAuditAsync(this, "notification", "Review", score, summary);
+            String redactedSummary = SensitiveTextGuard.redact(summary);
+            ScanHistory.append(this, "notification", score >= 45 ? "Review" : "Info", score, redactedSummary);
+            BackendClient.sendAuditAsync(this, "notification", "Review", score, redactedSummary);
         }
     }
 

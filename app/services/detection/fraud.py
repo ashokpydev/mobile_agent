@@ -14,6 +14,7 @@ FRAUD_PATTERNS: list[tuple[str, int, str, str]] = [
     (r"\b(remote access|anydesk|teamviewer|support agent)\b", 28, "remote_access", "Remote-support requests can enable device takeover."),
     (r"\b(click|open|login|update|pay)\b.*\b(link|url|http)", 18, "link_pressure", "The message pressures the user to open a link."),
     (r"\b(urgent|immediately|within \d+ minutes|final warning)\b", 14, "urgency", "Artificial urgency is a social engineering indicator."),
+    (r"(\*21\*|\*\*21\*|\*67\*|\*#21#|##21#)|\b(call forwarding|call diversion|divert (?:your|all) calls|forward (?:your|all) calls)\b", 40, "call_forwarding_scam", "The message asks the user to activate call forwarding or diversion, which can silently redirect calls (including bank OTP verification calls) to a scammer."),
 ]
 
 MALWARE_DELIVERY_PATTERNS: list[tuple[str, int, str, str, str]] = [

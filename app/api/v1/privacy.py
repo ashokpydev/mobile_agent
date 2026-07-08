@@ -25,7 +25,8 @@ async def privacy_controls() -> PrivacyControlStatus:
             "Explicit consent is required before cloud analysis.",
             "Raw artifact storage is disabled by default.",
             "Audit events pseudonymize device identifiers.",
-            "Sensitive values are redacted before audit logging.",
+            "Sensitive values are redacted, then encrypted at rest, before audit logging.",
+            "Audit log entries and rotated archives older than the retention window are deleted automatically.",
             "External AI providers are disabled by default.",
         ],
     )

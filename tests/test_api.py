@@ -1,6 +1,8 @@
 from fastapi.testclient import TestClient
 
+import app.api.v1.analysis as analysis_module
 from app.main import app
+from app.services.audit import AuditLogger
 
 
 client = TestClient(app)
@@ -115,6 +117,32 @@ def test_content_safety_endpoint_flags_adult_video_label() -> None:
 
     assert response.status_code == 200
     assert response.json()["findings"][0]["category"] == "adult_sexual_content"
+
+
+def test_content_safety_endpoint_writes_critical_escalation_audit_event(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(analysis_module, "audit_logger", AuditLogger(log_path=tmp_path / "actions.log"))
+
+    response = client.post(
+        "/api/v1/analysis/content-safety",
+        headers=AUTH_HEADERS,
+        json={
+            "device_id": "device-1",
+            "enabled": True,
+            "items": [
+                {
+                    "item_id": "chat-1",
+                    "content_type": "message",
+                    "source": "sms",
+                    "text": "sharing minor explicit content link",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["findings"][0]["category"] == "child_safety_risk"
+    log_text = (tmp_path / "actions.log").read_text(encoding="utf-8")
+    assert "content_safety.critical_escalation" in log_text
 
 
 def test_download_guard_endpoint_blocks_adult_download() -> None:

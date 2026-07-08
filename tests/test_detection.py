@@ -127,6 +127,30 @@ def test_sensitive_data_detector_flags_otp_and_personal_info() -> None:
     assert all("123456" not in finding.masked_value for finding in result.findings)
 
 
+def test_sensitive_data_detector_rejects_non_luhn_digit_runs_as_card() -> None:
+    result = SensitiveDataDetector().scan(
+        SensitiveDataScanRequest(
+            content="Order reference number 1234567890123456 does not pass a card checksum",
+            source_name="notes.txt",
+        )
+    )
+
+    labels = {finding.label for finding in result.findings}
+    assert "credit_card" not in labels
+
+
+def test_sensitive_data_detector_flags_valid_luhn_card_number() -> None:
+    result = SensitiveDataDetector().scan(
+        SensitiveDataScanRequest(
+            content="Card on file: 4111 1111 1111 1111",
+            source_name="notes.txt",
+        )
+    )
+
+    labels = {finding.label for finding in result.findings}
+    assert "credit_card" in labels
+
+
 def test_malware_detector_flags_known_bad_app_behavior() -> None:
     result = MalwareIndicatorDetector().scan(
         MalwareScanRequest(
@@ -235,6 +259,42 @@ def test_content_safety_flags_nudity_image_from_media_labels() -> None:
 
     assert result.findings[0].category == "adult_sexual_content"
     assert "delete the file" in result.findings[0].recommended_action
+
+
+def test_content_safety_flags_spaced_out_letter_evasion() -> None:
+    result = ContentSafetyDetector().scan(
+        ContentSafetyScanRequest(
+            device_id="device-1",
+            enabled=True,
+            items=[
+                ContentItem(
+                    item_id="msg-1",
+                    content_type="message",
+                    text="check out this n u d e video I found",
+                )
+            ],
+        )
+    )
+
+    assert result.findings[0].category == "adult_sexual_content"
+
+
+def test_content_safety_flags_leetspeak_evasion() -> None:
+    result = ContentSafetyDetector().scan(
+        ContentSafetyScanRequest(
+            device_id="device-1",
+            enabled=True,
+            items=[
+                ContentItem(
+                    item_id="msg-1",
+                    content_type="message",
+                    text="s3xually explicit content warning",
+                )
+            ],
+        )
+    )
+
+    assert result.findings[0].category == "adult_sexual_content"
 
 
 def test_download_guard_blocks_adult_video_download() -> None:

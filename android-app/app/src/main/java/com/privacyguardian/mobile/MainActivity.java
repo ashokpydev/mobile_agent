@@ -2,6 +2,7 @@ package com.privacyguardian.mobile;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.KeyguardManager;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.ContentResolver;
@@ -53,6 +54,7 @@ public class MainActivity extends Activity {
     private static final int REQUEST_PICK_MEDIA = 20;
     private static final int REQUEST_PICK_BROWSER_HISTORY = 21;
     private static final int REQUEST_BROWSER_VPN = 22;
+    private static final int REQUEST_OTP_AUTH = 30;
     private static final String BG = "#f3f6fa";
     private static final String PANEL = "#ffffff";
     private static final String INK = "#071426";
@@ -81,6 +83,7 @@ public class MainActivity extends Activity {
     private Uri selectedMediaUri;
     private volatile boolean cancelMediaScan = false;
     private boolean pendingFullDeviceScan = false;
+    private ScanData pendingOtpResult;
     private List<AppCameraRisk> cameraApps = new ArrayList<>();
 
     @Override
@@ -254,6 +257,7 @@ public class MainActivity extends Activity {
 
     private void runCurrentMode() {
         ScanData result;
+        boolean gateForOtp = false;
         if ("permissions".equals(activeMode)) {
             refreshCameraAudit();
             result = analyzePermissions();
@@ -266,6 +270,7 @@ public class MainActivity extends Activity {
             }
             String value = readRecentSmsMessages();
             result = analyzeMessage(value);
+            gateForOtp = SensitiveTextGuard.containsOtp(value);
             Toast.makeText(this, "Scanned recent SMS inbox messages", Toast.LENGTH_SHORT).show();
         } else if ("malware".equals(activeMode)) {
             result = analyzeInstalledAppsForMalware();
@@ -275,10 +280,78 @@ public class MainActivity extends Activity {
             result = analyzeTextMode(activeMode, value);
             Toast.makeText(this, "Analysis complete", Toast.LENGTH_SHORT).show();
         }
+        if (gateForOtp) {
+            requestOtpAuthentication(result);
+            return;
+        }
+        deliverResult(result);
+    }
+
+    private void deliverResult(ScanData result) {
         showCompletedResult(result);
         if (currentInput != null && !"permissions".equals(activeMode)) {
             currentInput.setText(result.input);
         }
+    }
+
+    private void requestOtpAuthentication(ScanData result) {
+        pendingOtpResult = result;
+        if (currentInput != null) {
+            currentInput.setText("Locked. Authenticate to view the message content.");
+        }
+        ScanData locked = otpLockedPlaceholder();
+        renderScores(metricsFor(locked));
+        renderResult(locked);
+
+        KeyguardManager keyguardManager = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+        if (keyguardManager == null || !keyguardManager.isDeviceSecure()) {
+            Toast.makeText(this, "Set a device PIN, pattern, or biometric lock to protect OTP messages. Showing the result without an extra unlock.", Toast.LENGTH_LONG).show();
+            releasePendingOtpResult();
+            return;
+        }
+        // createConfirmDeviceCredentialIntent is deprecated in favor of BiometricPrompt, but it needs no
+        // extra dependency and still works with this Activity-based (non-Fragment) UI up to compileSdk 35.
+        Intent confirmIntent = keyguardManager.createConfirmDeviceCredentialIntent(
+            "Unlock to view OTP message",
+            "This message contains an OTP or verification code."
+        );
+        if (confirmIntent == null) {
+            releasePendingOtpResult();
+            return;
+        }
+        try {
+            startActivityForResult(confirmIntent, REQUEST_OTP_AUTH);
+        } catch (ActivityNotFoundException ignored) {
+            releasePendingOtpResult();
+        }
+    }
+
+    private void releasePendingOtpResult() {
+        ScanData toShow = pendingOtpResult;
+        pendingOtpResult = null;
+        if (toShow != null) {
+            deliverResult(toShow);
+        }
+    }
+
+    private ScanData otpLockedPlaceholder() {
+        List<Finding> items = new ArrayList<>();
+        items.add(new Finding(
+            "Authentication required",
+            "This message contains an OTP or verification code. Unlock with your device PIN, pattern, or biometric to view the full message analysis.",
+            null
+        ));
+        return new ScanData(
+            "Message threat analysis",
+            "Locked. Authenticate to reveal OTP-related message content.",
+            "Locked",
+            WARNING,
+            "#fef3c7",
+            "Authenticate to view the message content.",
+            items,
+            Arrays.asList("Authenticate to view the message analysis.", "Never share the OTP itself with anyone, even after unlocking."),
+            60, 60, 45, 60, 45
+        );
     }
 
     private void showCompletedResult(ScanData result) {
@@ -830,6 +903,13 @@ public class MainActivity extends Activity {
             } else {
                 Toast.makeText(this, "VPN/DNS monitor permission was not granted", Toast.LENGTH_LONG).show();
             }
+        } else if (requestCode == REQUEST_OTP_AUTH) {
+            if (resultCode == RESULT_OK) {
+                releasePendingOtpResult();
+            } else {
+                pendingOtpResult = null;
+                Toast.makeText(this, "Authentication was not completed. The OTP message analysis stays locked.", Toast.LENGTH_LONG).show();
+            }
         }
     }
 
@@ -1213,6 +1293,12 @@ public class MainActivity extends Activity {
                 items.add(new Finding("Credential request", "The message asks for OTP, password, PIN, or payment secrets.", null));
             }
         }
+        if (containsAny(lower, "*21*", "**21*", "*67*", "*#21#", "##21#", "call forwarding", "call diversion", "forward your calls", "forward all calls", "divert your calls")) {
+            score += 40;
+            if (smsThreats.isEmpty()) {
+                items.add(new Finding("Call-forwarding scam request", "The message asks you to dial a call-forwarding code or enable call diversion, which can silently redirect your calls (including bank OTP verification calls) to a scammer.", null));
+            }
+        }
         if (containsAny(lower, "urgent", "final warning", "blocked", "expire", "suspend", "immediately")) {
             score += 25;
             if (smsThreats.isEmpty()) {
@@ -1266,6 +1352,9 @@ public class MainActivity extends Activity {
             if (threat.score >= 35) {
                 threats.add(threat);
             }
+            if (threat.score >= 65) {
+                FlaggedContacts.flag(this, sender, threat.score, joinReasons(threat.reasons));
+            }
         }
         return threats;
     }
@@ -1293,6 +1382,10 @@ public class MainActivity extends Activity {
         if (containsAny(lower, "otp", "password", "pin", "cvv")) {
             score += 25;
             reasons.add("credential request");
+        }
+        if (containsAny(lower, "*21*", "**21*", "*67*", "*#21#", "##21#", "call forwarding", "call diversion", "forward your calls", "forward all calls", "divert your calls")) {
+            score += 40;
+            reasons.add("call-forwarding scam request");
         }
         if (containsAny(lower, "urgent", "final warning", "blocked", "expire", "suspend", "immediately")) {
             score += 20;

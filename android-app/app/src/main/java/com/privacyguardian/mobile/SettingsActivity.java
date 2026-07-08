@@ -1,7 +1,11 @@
 package com.privacyguardian.mobile;
 
 import android.app.Activity;
+import android.app.KeyguardManager;
+import android.app.role.RoleManager;
+import android.content.Context;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.widget.Button;
@@ -12,7 +16,13 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.Set;
+
 public class SettingsActivity extends Activity {
+    private static final int REQUEST_CALL_SCREENING_ROLE = 50;
+    private static final int REQUEST_CONFIRM_BLOCKED_NUMBERS = 51;
+
+    private LinearLayout blockedSection;
     private EditText backendUrl;
     private EditText sensitivity;
     private EditText videoFrames;
@@ -69,7 +79,109 @@ public class SettingsActivity extends Activity {
             ScanHistory.clear(this);
             Toast.makeText(this, "History cleared", Toast.LENGTH_SHORT).show();
         }));
+
+        TextView callBlockingTitle = new TextView(this);
+        callBlockingTitle.setText("Call protection");
+        callBlockingTitle.setTextSize(20);
+        callBlockingTitle.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        callBlockingTitle.setPadding(0, 24, 0, 0);
+        root.addView(callBlockingTitle);
+        root.addView(button("Enable call blocking for flagged numbers", v -> requestCallScreeningRole()));
+
+        blockedSection = new LinearLayout(this);
+        blockedSection.setOrientation(LinearLayout.VERTICAL);
+        root.addView(blockedSection);
+        renderBlockedSummary();
+
         return scroll;
+    }
+
+    private void requestCallScreeningRole() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            RoleManager roleManager = getSystemService(RoleManager.class);
+            if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)) {
+                if (roleManager.isRoleHeld(RoleManager.ROLE_CALL_SCREENING)) {
+                    Toast.makeText(this, "Call blocking for flagged numbers is already enabled.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                startActivityForResult(roleManager.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING), REQUEST_CALL_SCREENING_ROLE);
+                return;
+            }
+        }
+        Toast.makeText(this, "This Android version does not support in-app call screening. Check your phone app's spam/caller-ID settings instead.", Toast.LENGTH_LONG).show();
+    }
+
+    private void renderBlockedSummary() {
+        blockedSection.removeAllViews();
+        int count = FlaggedContacts.all(this).size();
+        TextView summary = new TextView(this);
+        summary.setText(count + " number(s) currently blocked from calling based on message scan results.");
+        summary.setPadding(0, 10, 0, 6);
+        blockedSection.addView(summary);
+        blockedSection.addView(button("Authenticate to manage blocked callers", v -> requestBlockedNumbersAuthentication()));
+    }
+
+    private void requestBlockedNumbersAuthentication() {
+        KeyguardManager keyguardManager = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+        if (keyguardManager == null || !keyguardManager.isDeviceSecure()) {
+            Toast.makeText(this, "Set a device PIN, pattern, or biometric lock to manage blocked callers securely.", Toast.LENGTH_LONG).show();
+            renderBlockedNumbersDetail();
+            return;
+        }
+        Intent confirmIntent = keyguardManager.createConfirmDeviceCredentialIntent(
+            "Unlock to manage blocked callers",
+            "Authenticate to view or unblock numbers flagged by SentryNet's message scans."
+        );
+        if (confirmIntent == null) {
+            renderBlockedNumbersDetail();
+            return;
+        }
+        startActivityForResult(confirmIntent, REQUEST_CONFIRM_BLOCKED_NUMBERS);
+    }
+
+    private void renderBlockedNumbersDetail() {
+        blockedSection.removeAllViews();
+        Set<String> numbers = FlaggedContacts.all(this);
+        if (numbers.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText("No numbers are currently blocked.");
+            blockedSection.addView(empty);
+            return;
+        }
+        for (String number : numbers) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            TextView label = new TextView(this);
+            label.setText(number);
+            row.addView(label, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+            row.addView(button("Unblock", v -> {
+                FlaggedContacts.unflag(this, number);
+                renderBlockedNumbersDetail();
+            }));
+            blockedSection.addView(row);
+        }
+        blockedSection.addView(button("Clear all blocked numbers", v -> {
+            FlaggedContacts.clear(this);
+            renderBlockedNumbersDetail();
+        }));
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_CALL_SCREENING_ROLE) {
+            Toast.makeText(
+                this,
+                resultCode == RESULT_OK ? "Call blocking for flagged numbers enabled." : "Call screening role was not granted.",
+                Toast.LENGTH_LONG
+            ).show();
+        } else if (requestCode == REQUEST_CONFIRM_BLOCKED_NUMBERS) {
+            if (resultCode == RESULT_OK) {
+                renderBlockedNumbersDetail();
+            } else {
+                Toast.makeText(this, "Authentication cancelled.", Toast.LENGTH_SHORT).show();
+            }
+        }
     }
 
     private EditText input(String hint, String value) {

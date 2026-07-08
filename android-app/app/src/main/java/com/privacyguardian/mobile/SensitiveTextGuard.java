@@ -12,9 +12,15 @@ final class SensitiveTextGuard {
     private static final Pattern AADHAAR = Pattern.compile("\\b\\d{4}\\s?\\d{4}\\s?\\d{4}\\b");
     private static final Pattern PAN = Pattern.compile("\\b[A-Z]{5}\\d{4}[A-Z]\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern CARD = Pattern.compile("\\b(?:\\d[ -]*?){13,19}\\b");
+    private static final Pattern IFSC = Pattern.compile("\\b[A-Z]{4}0[A-Z0-9]{6}\\b");
+    private static final Pattern CRYPTO_WALLET = Pattern.compile("\\b(0x[a-fA-F0-9]{40}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})\\b");
     private static final Pattern SECRET = Pattern.compile("\\b(?:cvv|api[_-]?key|token|secret|seed phrase|recovery phrase)\\b", Pattern.CASE_INSENSITIVE);
 
     private SensitiveTextGuard() {}
+
+    static boolean containsOtp(String value) {
+        return OTP.matcher(value).find();
+    }
 
     static boolean containsSensitiveData(String value) {
         return OTP.matcher(value).find()
@@ -22,7 +28,9 @@ final class SensitiveTextGuard {
             || PHONE.matcher(value).find()
             || AADHAAR.matcher(value).find()
             || PAN.matcher(value).find()
-            || CARD.matcher(value).find()
+            || IFSC.matcher(value).find()
+            || CRYPTO_WALLET.matcher(value).find()
+            || containsValidCard(value)
             || SECRET.matcher(value).find();
     }
 
@@ -34,7 +42,9 @@ final class SensitiveTextGuard {
         if (PHONE.matcher(value).find()) labels.add("phone");
         if (AADHAAR.matcher(value).find()) labels.add("Aadhaar-like ID");
         if (PAN.matcher(value).find()) labels.add("PAN");
-        if (CARD.matcher(value).find()) labels.add("payment card");
+        if (IFSC.matcher(value).find()) labels.add("IFSC");
+        if (CRYPTO_WALLET.matcher(value).find()) labels.add("crypto wallet");
+        if (containsValidCard(value)) labels.add("payment card");
         if (SECRET.matcher(value).find() || lower.contains("password")) labels.add("secret");
         return labels.isEmpty() ? "none" : join(labels);
     }
@@ -46,8 +56,54 @@ final class SensitiveTextGuard {
         redacted = PHONE.matcher(redacted).replaceAll("[REDACTED_PHONE]");
         redacted = AADHAAR.matcher(redacted).replaceAll("[REDACTED_ID]");
         redacted = PAN.matcher(redacted).replaceAll("[REDACTED_PAN]");
-        redacted = CARD.matcher(redacted).replaceAll("[REDACTED_CARD]");
+        redacted = IFSC.matcher(redacted).replaceAll("[REDACTED_IFSC]");
+        redacted = CRYPTO_WALLET.matcher(redacted).replaceAll("[REDACTED_WALLET]");
+        redacted = redactValidCards(redacted);
         return redacted.replace('\n', ' ').replace('|', '/');
+    }
+
+    /** Only treat a 13-19 digit run as a card number if it also passes the Luhn checksum,
+     * otherwise phone numbers and order IDs of the same length get misclassified as cards. */
+    private static boolean containsValidCard(String value) {
+        java.util.regex.Matcher matcher = CARD.matcher(value);
+        while (matcher.find()) {
+            if (passesLuhn(matcher.group())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String redactValidCards(String value) {
+        java.util.regex.Matcher matcher = CARD.matcher(value);
+        StringBuilder result = new StringBuilder();
+        int lastEnd = 0;
+        while (matcher.find()) {
+            result.append(value, lastEnd, matcher.start());
+            result.append(passesLuhn(matcher.group()) ? "[REDACTED_CARD]" : matcher.group());
+            lastEnd = matcher.end();
+        }
+        result.append(value.substring(lastEnd));
+        return result.toString();
+    }
+
+    private static boolean passesLuhn(String candidate) {
+        int[] digits = candidate.chars().filter(Character::isDigit).map(Character::getNumericValue).toArray();
+        if (digits.length < 13 || digits.length > 19) {
+            return false;
+        }
+        int sum = 0;
+        for (int i = 0; i < digits.length; i++) {
+            int digit = digits[digits.length - 1 - i];
+            if (i % 2 == 1) {
+                digit *= 2;
+                if (digit > 9) {
+                    digit -= 9;
+                }
+            }
+            sum += digit;
+        }
+        return sum % 10 == 0;
     }
 
     private static String join(List<String> labels) {

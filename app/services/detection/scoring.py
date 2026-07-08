@@ -1,6 +1,25 @@
 from app.schemas.common import Severity
 
 
+def luhn_check(digits: str) -> bool:
+    """Validate a digit string against the Luhn checksum used by real payment cards.
+
+    Any 13-19 digit run matches the card-number pattern, so this filters out phone
+    numbers, order IDs, and other incidental digit sequences that aren't actual cards.
+    """
+    number = [int(d) for d in digits if d.isdigit()]
+    if not (13 <= len(number) <= 19):
+        return False
+    total = 0
+    for i, digit in enumerate(reversed(number)):
+        if i % 2 == 1:
+            digit *= 2
+            if digit > 9:
+                digit -= 9
+        total += digit
+    return total % 10 == 0
+
+
 def clamp_score(score: int) -> int:
     return max(0, min(100, score))
 
